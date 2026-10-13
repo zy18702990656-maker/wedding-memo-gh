@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<title>婚礼通知备忘录</title>
+<meta name="theme-color" content="#0b6fc4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="婚礼备忘">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ 侧栏 / 顶部区 ============ -->
+  <aside class="side">
+    <header class="brand">
+      <div class="brand-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="#fff"><path d="M12 20.7s-7.6-4.9-9.4-9C1.2 8.2 3 4.9 6.3 4.3c2-.4 3.9.5 4.9 2.1h1.6c1-1.6 2.9-2.5 4.9-2.1 3.3.6 5.1 3.9 3.7 7.4-1.8 4.1-9.4 9-9.4 9z"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>婚礼通知备忘录</h1>
+        <p id="brandSub">已通知名单 · 出席跟踪</p>
+      </div>
+      <button class="icon-btn" id="btnMenu" title="更多" aria-label="更多">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+      </button>
+    </header>
+
+    <!-- 统计 -->
+    <section class="stats" id="stats">
+      <button class="stat" data-status="all"><b id="sAll">0</b><span>总人数</span></button>
+      <button class="stat s-confirmed" data-status="confirmed"><b id="sConfirmed">0</b><span>确认出席</span></button>
+      <button class="stat s-pending" data-status="pending"><b id="sPending">0</b><span>待确认</span></button>
+      <button class="stat s-declined" data-status="declined"><b id="sDeclined">0</b><span>不来</span></button>
+    </section>
+
+    <!-- 标签 -->
+    <section class="panel" id="panelTags" data-panel="tags">
+      <div class="panel-head">
+        <h2 class="panel-toggle">标签分组<svg class="chev" viewBox="0 0 12 8"><path d="M1 2 6 7 11 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></h2>
+        <button class="link-btn" id="btnManageTags">管理</button>
+      </div>
+      <div class="panel-body">
+        <div class="tag-grid" id="tagGrid"></div>
+      </div>
+    </section>
+
+    <!-- 搜索 + 状态筛选 -->
+    <section class="panel" id="panelFilter" data-panel="filter">
+      <div class="panel-head">
+        <h2 class="panel-toggle">搜索与筛选<svg class="chev" viewBox="0 0 12 8"><path d="M1 2 6 7 11 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></h2>
+        <span class="filter-tip" id="filterTip" hidden>已启用</span>
+      </div>
+      <div class="panel-body">
+        <div class="search-wrap">
+          <svg class="search-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <input id="search" type="search" placeholder="搜姓名 / 标签 / 备注" autocomplete="off">
+          <button class="clear-btn" id="btnClearSearch" hidden aria-label="清除">×</button>
+        </div>
+        <div class="seg" id="statusSeg">
+          <button data-status="all" class="on">全部</button>
+          <button data-status="notified">已通知</button>
+          <button data-status="confirmed">确认出席</button>
+          <button data-status="pending">待确认</button>
+          <button data-status="declined">不来</button>
+        </div>
+        <div class="sort-row">
+          <label for="sortSel">排序</label>
+          <select id="sortSel">
+            <option value="date-desc">通知日期 · 新→旧</option>
+            <option value="date-asc">通知日期 · 旧→新</option>
+            <option value="name">姓名拼音</option>
+            <option value="status">按状态</option>
+          </select>
+          <label class="switch"><input type="checkbox" id="groupToggle"><span>按标签分组</span></label>
+        </div>
+      </div>
+    </section>
+
+    <div class="side-foot">
+      <button class="ghost-btn" id="btnSync">
+        <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 12a8 8 0 0 1-13.7 5.7L4 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 4v4h-4M4 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        换机搬数据
+      </button>
+      <button class="ghost-btn" id="btnBackup">
+        <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        备份与恢复
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ 主内容 ============ -->
+  <main class="main">
+    <div class="main-inner">
+      <div class="list-head">
+        <h2 id="listTitle">全部朋友</h2>
+        <div class="list-head-right">
+          <span class="count-chip" id="listCount">0 人</span>
+          <button class="link-btn" id="btnCopyList">复制名单</button>
+        </div>
+      </div>
+      <div id="list" class="list"></div>
+      <div id="empty" class="empty card" hidden>
+        <div class="empty-ico">🤍</div>
+        <p class="empty-title">这里还没有人</p>
+        <p class="empty-sub">点右下角「＋」记下你已经通知过的朋友</p>
+        <button class="primary-btn" id="btnEmptyAdd">添加第一位</button>
+      </div>
+    </div>
+  </main>
+
+  <button class="fab" id="btnAdd" aria-label="新增">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+  </button>
+</div>
+
+<!-- ============ 表单弹层 ============ -->
+<div class="sheet-mask" id="formMask" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="link-btn" id="btnFormCancel">取消</button>
+      <h3 id="formTitle">新增朋友</h3>
+      <button class="link-btn strong" id="btnFormSave">保存</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field batch-field">
+        <span class="switch"><input type="checkbox" id="batchMode"><span>批量录入（换行 / 空格 / 逗号 / 顿号 分隔）</span></span>
+      </label>
+
+      <label class="field">
+        <span class="label">姓名 <i>*</i></span>
+        <input id="fName" type="text" placeholder="例：张伟" autocomplete="off">
+        <textarea id="fNames" rows="5" placeholder="张三 李四 王五&#10;赵六、孙七" hidden></textarea>
+        <span class="hint" id="batchHint" hidden>将生成 0 条记录</span>
+      </label>
+
+      <div class="field">
+        <span class="label">标签</span>
+        <div class="chip-pick" id="fTagPick"></div>
+      </div>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="label">出席状态</span>
+          <select id="fStatus">
+            <option value="notified">已通知</option>
+            <option value="confirmed">确认出席</option>
+            <option value="pending">待确认</option>
+            <option value="declined">不来</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">通知日期</span>
+          <input id="fDate" type="date">
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="label">备注</span>
+        <input id="fNote" type="text" placeholder="随礼 / 桌位 / 是否带家属" autocomplete="off">
+      </label>
+
+      <button class="danger-btn" id="btnDelete" hidden>删除这条记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 通用弹层 ============ -->
+<div class="sheet-mask" id="modalMask" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="link-btn" id="btnModalClose">关闭</button>
+      <h3 id="modalTitle">标题</h3>
+      <span style="width:44px"></span>
+    </div>
+    <div class="sheet-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden><span id="toastText"></span><button id="toastAction" hidden></button></div>
+
+<script src="app.js"></script>
+</body>
+</html>
