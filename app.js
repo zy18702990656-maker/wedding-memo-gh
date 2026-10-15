@@ -13,15 +13,19 @@
   var K_SNAP = 'wm_snapshots_v3';
   var K_PREF = 'wm_pref_v3';
   var K_TOMB = 'wm_tombs_v3';
+  var K_TAGORDER = 'wm_tagorder_v3';
 
   var PRESET_TAGS = ['亲戚', '大荔发小', '初中同学', '高中同学', '大荔跳舞朋友', '西安跳舞朋友'];
-  var STATUS_ORDER = ['notified', 'confirmed', 'pending', 'declined'];
+  var STATUS_ORDER = ['notified', 'confirmed', 'pending', 'declined'];   // 徽章点击的循环顺序
   var STATUS_TEXT = { notified: '已通知', confirmed: '确认出席', pending: '待确认', declined: '不来' };
+  // 明细列表的状态排序权重：已通知 → 待确认 → 不来 → 确认出席（越小越靠前）
+  var STATUS_RANK = { notified: 0, pending: 1, declined: 2, confirmed: 3 };
 
   /* ---------------- 状态 ---------------- */
   var friends = [];
   var customTags = [];
   var tombs = {};            // 删除墓碑 { clientId: updatedAt }，用于跨设备传播删除
+  var tagOrder = [];         // 标签显示顺序（含预设标签），可在标签管理里上下调整
   var pref = { sort: 'date-desc', group: false, fold: {} };
   var filterTag = null;      // null = 全部
   var filterStatus = 'all';
@@ -75,6 +79,8 @@
     friends = read(K_FRIENDS, []) || [];
     customTags = read(K_TAGS, []) || [];
     tombs = read(K_TOMB, {}) || {};
+    tagOrder = read(K_TAGORDER, null) || PRESET_TAGS.concat(customTags);
+    normalizeTagOrder();
     var stored = read(K_PREF, null);
     pref = Object.assign({ sort: 'date-desc', group: false, fold: {} }, stored || {});
     if (!pref.fold) pref.fold = {};
@@ -101,7 +107,30 @@
     write(K_TOMB, tombs);
   }
 
-  function allTags() { return PRESET_TAGS.concat(customTags); }
+  // 顺序表与实际标签集合对齐：补上新标签、剔除已删除的，保持用户排好的相对次序
+  function normalizeTagOrder() {
+    var exists = PRESET_TAGS.concat(customTags);
+    var seen = {};
+    var next = [];
+    (tagOrder || []).forEach(function (t) {
+      if (exists.indexOf(t) >= 0 && !seen[t]) { seen[t] = 1; next.push(t); }
+    });
+    exists.forEach(function (t) { if (!seen[t]) { seen[t] = 1; next.push(t); } });
+    var changed = next.length !== (tagOrder || []).length ||
+      next.some(function (t, i) { return t !== tagOrder[i]; });
+    tagOrder = next;
+    if (changed) write(K_TAGORDER, tagOrder);
+  }
+  function saveTagOrder() { write(K_TAGORDER, tagOrder); }
+  function allTags() { normalizeTagOrder(); return tagOrder.slice(); }
+  function moveTag(name, dir) {
+    var i = tagOrder.indexOf(name);
+    var j = i + dir;
+    if (i < 0 || j < 0 || j >= tagOrder.length) return false;
+    tagOrder.splice(j, 0, tagOrder.splice(i, 1)[0]);
+    saveTagOrder();
+    return true;
+  }
 
   /* 自动快照：保留最近 8 次，误操作可回滚 */
   function snapshot() {
@@ -132,15 +161,17 @@
       });
     }
     var s = pref.sort;
+    var byName = function (a, b) { return a.name.localeCompare(b.name, 'zh-Hans-CN'); };
+    var byStatus = function (a, b) {
+      return (STATUS_RANK[a.status] || 0) - (STATUS_RANK[b.status] || 0);
+    };
     list = list.slice().sort(function (a, b) {
-      if (s === 'name') return a.name.localeCompare(b.name, 'zh-Hans-CN');
-      if (s === 'status') {
-        var d = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
-        return d !== 0 ? d : a.name.localeCompare(b.name, 'zh-Hans-CN');
-      }
+      if (s === 'name') return byName(a, b) || byStatus(a, b);
+      if (s === 'status') return byStatus(a, b) || -(a.date || '').localeCompare(b.date || '') || byName(a, b);
+      // 日期优先；同一天内按 已通知 → 待确认 → 不来 → 确认出席；再按姓名
       var r = (a.date || '').localeCompare(b.date || '');
-      if (s === 'date-asc') return r !== 0 ? r : a.name.localeCompare(b.name, 'zh-Hans-CN');
-      return r !== 0 ? -r : a.name.localeCompare(b.name, 'zh-Hans-CN');
+      if (s === 'date-asc') return r || byStatus(a, b) || byName(a, b);
+      return -r || byStatus(a, b) || byName(a, b);
     });
     return list;
   }
@@ -149,6 +180,7 @@
   function renderStats() {
     var scope = scopedByTag();
     $('sAll').textContent = scope.length;
+    $('sNotified').textContent = scope.filter(function (f) { return f.status === 'notified'; }).length;
     $('sConfirmed').textContent = scope.filter(function (f) { return f.status === 'confirmed'; }).length;
     $('sPending').textContent = scope.filter(function (f) { return f.status === 'pending'; }).length;
     $('sDeclined').textContent = scope.filter(function (f) { return f.status === 'declined'; }).length;
@@ -438,47 +470,95 @@
     if (!name) return;
     if (allTags().indexOf(name) >= 0) { toast('这个标签已经有了'); return; }
     customTags.push(name);
+    tagOrder.push(name);
     saveTags();
+    saveTagOrder();
     render();
     toast('已添加标签「' + name + '」');
   }
 
-  $('btnManageTags').addEventListener('click', function () {
-    var rows = allTags().map(function (t) {
+  $('btnManageTags').addEventListener('click', openTagManager);
+
+  function openTagManager() {
+    var list = allTags();
+    var rows = list.map(function (t, i) {
       var isPreset = PRESET_TAGS.indexOf(t) >= 0;
       var n = friends.filter(function (f) { return f.relation === t; }).length;
-      return '<div class="tagrow"><span>' + esc(t) + '</span><em>' + n + ' 人</em>' +
-        (isPreset ? '<button disabled>预设</button>'
-          : '<button data-del="' + esc(t) + '">删除</button>') + '</div>';
+      return '<div class="tagrow">' +
+        '<span class="tagrow-idx">' + (i + 1) + '</span>' +
+        '<span class="tagrow-name">' + esc(t) + '</span>' +
+        '<em>' + n + ' 人</em>' +
+        '<span class="tagrow-moves">' +
+        '<button class="mv" data-up="' + esc(t) + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="上移">↑</button>' +
+        '<button class="mv" data-down="' + esc(t) + '"' + (i === list.length - 1 ? ' disabled' : '') + ' aria-label="下移">↓</button>' +
+        '</span>' +
+        (isPreset ? '<button class="tagrow-del" disabled>预设</button>'
+          : '<button class="tagrow-del" data-del="' + esc(t) + '">删除</button>') +
+        '</div>';
     }).join('');
-    openModal('标签管理',
-      '<div class="mod-sec"><p>预设标签不可删除。删除自定义标签后，原本属于它的朋友会变成「未分组」，记录不会丢。</p>' +
+    openModal('标签管理与排序',
+      '<div class="mod-sec"><h4>拖不动就用箭头</h4>' +
+      '<p>用 ↑ ↓ 调整顺序，页面上的标签网格、表单里的标签选择、按标签分组的视图都会跟着这个顺序。预设标签也能排。</p>' +
       rows + '</div>' +
-      '<div class="mod-sec"><button class="sec-btn block" id="mAddTag">＋ 新增标签</button></div>',
+      '<div class="mod-sec"><div class="btns two">' +
+      '<button class="sec-btn" id="mAddTag">＋ 新增标签</button>' +
+      '<button class="sec-btn" id="mResetOrder">恢复默认顺序</button>' +
+      '</div></div>' +
+      '<div class="mod-sec"><p>删除自定义标签后，原本属于它的朋友会变成「未分组」，记录不会丢。预设标签不可删除。</p></div>',
       function (body) {
         body.addEventListener('click', function (e) {
           var add = e.target.closest('#mAddTag');
           if (add) { closeModal(); addTagPrompt(); return; }
+
+          var reset = e.target.closest('#mResetOrder');
+          if (reset) {
+            tagOrder = PRESET_TAGS.concat(customTags);
+            saveTagOrder();
+            render();
+            openTagManager();
+            toast('已恢复默认顺序');
+            return;
+          }
+
+          var up = e.target.closest('[data-up]');
+          var down = e.target.closest('[data-down]');
+          if (up || down) {
+            if (moveTag((up || down).dataset[up ? 'up' : 'down'], up ? -1 : 1)) {
+              render();
+              openTagManager();
+            }
+            return;
+          }
+
           var del = e.target.closest('[data-del]');
           if (!del) return;
           var t = del.dataset.del;
           if (!confirm('删除标签「' + t + '」？属于它的朋友会变成未分组。')) return;
           snapshot();
           customTags = customTags.filter(function (x) { return x !== t; });
+          tagOrder = tagOrder.filter(function (x) { return x !== t; });
+          saveTagOrder();
           friends.forEach(function (f) { if (f.relation === t) { f.relation = ''; f.updatedAt = now(); } });
           commit();
           if (filterTag === t) filterTag = null;
-          closeModal(); render(); toast('已删除标签');
+          render();
+          openTagManager();
+          toast('已删除标签');
         });
       });
-  });
+  }
 
   /* ---------------- 通用弹层 ---------------- */
   function openModal(title, html, after) {
     $('modalTitle').textContent = title;
-    $('modalBody').innerHTML = html;
+    // 用一个干净的新节点替换，避免反复打开同一弹层时事件监听器层层叠加
+    // （叠加会让一次点击被执行多次，比如标签上移一下跳好几格）
+    var old = $('modalBody');
+    var fresh = old.cloneNode(false);
+    fresh.innerHTML = html;
+    old.parentNode.replaceChild(fresh, old);
     $('modalMask').hidden = false;
-    if (after) after($('modalBody'));
+    if (after) after(fresh);
   }
   function closeModal() { $('modalMask').hidden = true; $('modalBody').innerHTML = ''; }
   $('btnModalClose').addEventListener('click', closeModal);
@@ -774,6 +854,8 @@
       '<div class="mod-sec"><h4>快捷操作</h4>' +
       '<ul class="tiplist">' +
       '<li>点一下右边的状态徽章，就在「已通知 → 确认出席 → 待确认 → 不来」之间循环切换。</li>' +
+      '<li>明细默认排序：通知日期新的在前；同一天内按「已通知 → 待确认 → 不来 → 确认出席」排，没落定的排在前面。</li>' +
+      '<li>标签顺序可以自己调：标签分组右上角「管理」里用 ↑ ↓ 排，网格、表单、分组视图都跟着变。</li>' +
       '<li>点卡片任意位置进入编辑，删除按钮在编辑页里面。</li>' +
       '<li>点统计卡片可以直接筛选对应状态，再点一下取消。</li>' +
       '<li>批量录入时姓名支持换行、空格、逗号、顿号混用。</li>' +
@@ -783,10 +865,10 @@
       '<div class="mod-sec"><h4>自检信息</h4>' +
       '<p id="diagBox" style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.8">读取中…</p>' +
       '<button class="sec-btn block" id="btnCopyDiag">复制自检信息</button></div>' +
-      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.0 · iPhone 版</p></div>',
+      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.1 · iPhone 版</p></div>',
       function (body) {
         var lines = [
-          '版本 v4.0-iOS',
+          '版本 v4.1-iOS',
           '记录 ' + friends.length + ' 条 · 自定义标签 ' + customTags.length + ' 个',
           '网络 ' + (navigator.onLine ? '在线' : '离线'),
           '离线缓存 ' + ('serviceWorker' in navigator ? (navigator.serviceWorker.controller ? '已生效' : '未生效') : '不支持'),
