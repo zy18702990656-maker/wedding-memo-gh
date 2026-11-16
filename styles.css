@@ -673,3 +673,29 @@ body.view-gift .main{padding-top:4px}
 /* 份子钱页的主按钮跟着页面走红色系 */
 .gcard-export .primary-btn{background:linear-gradient(145deg,#d4423f,#b82424);box-shadow:0 2px 10px rgba(198,45,45,.3)}
 .gcard-export .sec-btn{color:var(--money);border-color:var(--money-line);background:var(--money-soft)}
+
+/* ===================== 数据抢救入口 ===================== */
+.empty-rescue{
+  margin:14px 0 0;padding-top:13px;border-top:1px solid var(--line);
+  font-size:12px;font-weight:600;color:var(--text-3);
+}
+.empty-rescue a{color:var(--money);font-weight:700;text-decoration:none;white-space:nowrap}
+.rescue-link{
+  display:block;margin-top:8px;text-align:center;padding:9px;
+  font-size:12px;font-weight:700;color:var(--text-3);text-decoration:none;
+  border-radius:10px;border:1px dashed var(--line-strong);background:rgba(255,255,255,.5);
+}
+.rescue-link:active{background:#fff}
+.boot-fail{
+  position:fixed;left:12px;right:12px;bottom:calc(16px + var(--sb));z-index:95;
+  background:#fff;border:1px solid var(--money-line);border-radius:14px;
+  padding:14px 16px;box-shadow:0 10px 36px rgba(198,45,45,.26);
+  display:flex;flex-direction:column;gap:4px;
+}
+.boot-fail b{font-size:14.5px;font-weight:700;color:var(--money-deep)}
+.boot-fail span{font-size:12.5px;font-weight:600;color:var(--text-2)}
+.boot-fail a{
+  margin-top:7px;display:block;text-align:center;padding:10px;border-radius:10px;
+  background:linear-gradient(145deg,#d4423f,#b82424);color:#fff;
+  font-size:14px;font-weight:700;text-decoration:none;
+}

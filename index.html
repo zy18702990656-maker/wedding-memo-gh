@@ -114,6 +114,7 @@
         备份与恢复
       </button>
     </div>
+    <a class="rescue-link" href="rescue.html">数据不见了？打开抢救页 ›</a>
     </div><!-- /side-list -->
   </aside>
 
@@ -133,6 +134,7 @@
         <p class="empty-title">这里还没有人</p>
         <p class="empty-sub">点右下角「＋」记下你已经通知过的朋友</p>
         <button class="primary-btn" id="btnEmptyAdd">添加第一位</button>
+        <p class="empty-rescue">以前记过东西、现在却是空的？<a href="rescue.html">点这里抢救数据 ›</a></p>
       </div>
     </div>
 
@@ -316,6 +318,31 @@
 
 <div id="toast" class="toast" hidden><span id="toastText"></span><button id="toastAction" hidden></button></div>
 
-<script src="app.js"></script>
+<script>
+/* Service Worker 注册放在这里、不放 app.js：
+   万一 app.js 出错，离线缓存照样能更新到新版本，不会被旧缓存永久卡住。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      reg.addEventListener && reg.addEventListener('updatefound', function () { });
+      reg.update && reg.update();
+    }).catch(function () { });
+  });
+}
+/* 兜底：app.js 整体崩了的话，至少让用户看见抢救入口，而不是一片空白 */
+window.addEventListener('error', function (e) {
+  if (!e || !e.filename || e.filename.indexOf('app.js') < 0) return;
+  var box = document.getElementById('bootFail');
+  if (box) box.hidden = false;
+}, true);
+</script>
+
+<div id="bootFail" class="boot-fail" hidden>
+  <b>页面没加载完整</b>
+  <span>你的数据还在本机，没有丢。点下面进抢救页导出备份。</span>
+  <a href="rescue.html">打开抢救页 ›</a>
+</div>
+
+<script src="app.js?v=4.3.1"></script>
 </body>
 </html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>数据抢救 · 婚礼通知备忘录</title>
+<meta name="theme-color" content="#0b6fc4">
+<style>
+/* 完全内联，不依赖 styles.css / app.js / sw.js —— 主应用坏了这页也能开 */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none !important}
+body{
+  margin:0;padding:calc(14px + env(safe-area-inset-top,0px)) 14px calc(40px + env(safe-area-inset-bottom,0px));
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  background:#dde9f8;color:#12324f;font-size:15px;line-height:1.55;
+  -webkit-text-size-adjust:100%;
+}
+h1{margin:0 0 4px;font-size:19px;font-weight:700;color:#05528f}
+.sub{margin:0 0 16px;font-size:12.5px;font-weight:600;color:#4a6b87}
+.card{background:#fff;border:1px solid rgba(8,70,140,.14);border-radius:14px;padding:14px;margin-bottom:12px;
+ box-shadow:0 1px 2px rgba(8,70,140,.06),0 6px 18px rgba(8,70,140,.08)}
+h2{margin:0 0 10px;font-size:14px;font-weight:700;color:#05528f}
+.verdict{text-align:center;padding:18px 14px;border-radius:13px;margin-bottom:12px}
+.v-ok{background:linear-gradient(145deg,#e8f6ec,#f4fbf6);border:1px solid rgba(22,130,70,.28)}
+.v-bad{background:linear-gradient(145deg,#fdeeec,#fff7f6);border:1px solid rgba(198,45,45,.28)}
+.v-num{font-size:44px;font-weight:700;line-height:1.05;letter-spacing:-1.5px}
+.v-ok .v-num{color:#136b3c}.v-bad .v-num{color:#9b1f1f}
+.v-txt{margin-top:4px;font-size:13.5px;font-weight:700}
+.v-ok .v-txt{color:#136b3c}.v-bad .v-txt{color:#9b1f1f}
+.v-hint{margin-top:8px;font-size:12px;font-weight:600;color:#4a6b87}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid rgba(8,70,140,.1);vertical-align:top}
+th{font-size:11px;font-weight:700;color:#7d97ae;white-space:nowrap}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.money{color:#c62d2d;font-weight:700}
+.muted{color:#7d97ae}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;color:#0b6fc4;background:#eef4fd;
+ border-radius:5px;padding:1px 5px;margin-right:4px}
+button{font:inherit;color:inherit;border:none;background:none;cursor:pointer}
+.btn{display:block;width:100%;height:46px;border-radius:12px;font-size:15px;font-weight:700;margin-bottom:9px}
+.btn-main{background:linear-gradient(145deg,#2a90e0,#0b6fc4);color:#fff;box-shadow:0 2px 10px rgba(11,111,196,.3)}
+.btn-sec{background:#eef4fd;color:#05528f;border:1px solid rgba(8,70,140,.18)}
+.btn-warn{background:#fff2f0;color:#c62d2d;border:1px solid rgba(198,45,45,.26)}
+.btn:active{transform:scale(.985)}
+.snap{display:flex;align-items:center;gap:9px;padding:9px 10px;background:#f7faff;
+ border:1px solid rgba(8,70,140,.12);border-radius:10px;margin-bottom:7px}
+.snap-t{flex:1;min-width:0;font-size:12.5px;font-weight:700}
+.snap-n{font-size:11.5px;font-weight:700;color:#0b6fc4;background:#eef4fd;border-radius:999px;padding:2px 9px}
+.snap button{font-size:12px;font-weight:700;color:#c62d2d;background:#fff2f0;
+ border:1px solid rgba(198,45,45,.26);border-radius:8px;padding:5px 10px;white-space:nowrap}
+pre{margin:0;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.75;
+ white-space:pre-wrap;word-break:break-all;color:#4a6b87;background:#f7faff;
+ border:1px solid rgba(8,70,140,.1);border-radius:9px;padding:10px;max-height:240px;overflow:auto}
+.note{font-size:12px;font-weight:600;color:#4a6b87;margin:0 0 10px}
+.danger{font-size:12px;font-weight:700;color:#9b1f1f;background:#fff2f0;
+ border:1px solid rgba(198,45,45,.26);border-radius:10px;padding:10px;margin:0 0 12px}
+a.back{display:inline-block;margin-top:6px;font-size:13px;font-weight:700;color:#0b6fc4;text-decoration:none}
+#toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+ background:#113a5e;color:#fff;border-radius:12px;padding:11px 16px;font-size:13.5px;font-weight:600;z-index:99;
+ box-shadow:0 10px 30px rgba(8,45,85,.35);max-width:88vw}
+</style>
+</head>
+<body>
+
+<h1>数据抢救</h1>
+<p class="sub">这个页面只读取本机数据，不会改动任何东西（除了你亲自点「恢复」）。</p>
+
+<div id="verdict" class="verdict v-bad">
+  <div class="v-num" id="vNum">…</div>
+  <div class="v-txt" id="vTxt">正在读取本机存储…</div>
+  <div class="v-hint" id="vHint"></div>
+</div>
+
+<div class="card">
+  <h2>第一步：先把数据存下来</h2>
+  <p class="note">不管后面怎么修，先导一份备份出来，就再也丢不了。</p>
+  <button class="btn btn-main" id="bJson">导出 JSON 备份文件</button>
+  <button class="btn btn-sec" id="bCode">复制同步码（可粘到微信给自己）</button>
+  <button class="btn btn-sec" id="bText">复制成文字名单</button>
+</div>
+
+<div class="card" id="cardList" hidden>
+  <h2>本机现有名单 <span class="muted" id="listN"></span></h2>
+  <div style="overflow-x:auto">
+    <table id="tbl"></table>
+  </div>
+</div>
+
+<div class="card" id="cardSnap" hidden>
+  <h2>自动快照（改动前自动留底）</h2>
+  <p class="note">如果上面的名单不对，从这里挑一个时间点回滚。回滚前会先把当前状态也存成快照，不会把现在的弄丢。</p>
+  <div id="snaps"></div>
+</div>
+
+<div class="card">
+  <h2>诊断信息</h2>
+  <p class="note">把这段截图或复制发我，我就能定位问题。</p>
+  <pre id="diag">读取中…</pre>
+  <button class="btn btn-sec" style="margin-top:10px" id="bDiag">复制诊断信息</button>
+</div>
+
+<div class="card">
+  <h2>还要注意</h2>
+  <div class="danger">千万别做这三件事，会真的删掉数据：<br>
+  ① 删掉桌面上的 App 图标<br>
+  ② Safari 设置里「清除历史记录与网站数据」<br>
+  ③ 设置 → Safari → 高级 → 网站数据 里删掉 github.io</div>
+  <a class="back" href="./index.html">‹ 回到名单</a>
+</div>
+
+<div id="toast" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  var K_FRIENDS = 'wm_friends_v3', K_TAGS = 'wm_tags_v3', K_SNAP = 'wm_snapshots_v3';
+  var STATUS_ORDER = ['notified', 'confirmed', 'pending', 'declined'];
+  var STATUS_TEXT = { notified: '已通知', confirmed: '确认出席', pending: '待确认', declined: '不来' };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function toast(t) {
+    var b = $('toast'); b.textContent = t; b.hidden = false;
+    setTimeout(function () { b.hidden = true; }, 2400);
+  }
+  function money(v) {
+    var n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+  function fmt(n) { return String(money(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function today() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function readRaw(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function readJSON(k, def) {
+    try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : def; } catch (e) { return def; }
+  }
+
+  var friends = readJSON(K_FRIENDS, []) || [];
+  var tags = readJSON(K_TAGS, []) || [];
+  var snaps = readJSON(K_SNAP, []) || [];
+  if (!Array.isArray(friends)) friends = [];
+
+  /* ---------- 结论 ---------- */
+  var box = $('verdict');
+  var snapMax = snaps.reduce(function (a, s) { return Math.max(a, s.n || 0); }, 0);
+  $('vNum').textContent = friends.length;
+  if (friends.length > 0) {
+    box.className = 'verdict v-ok';
+    $('vTxt').textContent = '条记录还在本机，数据没丢';
+    var gs = friends.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    $('vHint').textContent = '自定义标签 ' + tags.length + ' 个'
+      + (gs > 0 ? ' · 已记礼金 ¥' + fmt(gs) : '')
+      + ' · 先用下面的按钮导一份备份';
+  } else {
+    box.className = 'verdict v-bad';
+    $('vTxt').textContent = '当前存储里没有名单';
+    $('vHint').textContent = snapMax > 0
+      ? '但快照里还有最多 ' + snapMax + ' 条，往下翻用快照回滚'
+      : '这个浏览器/App 里没有数据。如果你平时是从桌面图标打开的，请从桌面图标进来再看这一页（iOS 的桌面 App 和 Safari 存储是分开的）。';
+  }
+
+  /* ---------- 名单表格 ---------- */
+  if (friends.length) {
+    $('cardList').hidden = false;
+    $('listN').textContent = '（' + friends.length + ' 人）';
+    var rows = friends.slice().sort(function (a, b) {
+      return String(b.date || '').localeCompare(String(a.date || ''));
+    });
+    var html = '<tr><th>#</th><th>姓名</th><th>标签 / 状态</th><th class="num">份子钱</th></tr>';
+    rows.forEach(function (f, i) {
+      html += '<tr><td class="muted">' + (i + 1) + '</td>' +
+        '<td><b>' + esc(f.name) + '</b>' +
+        (f.note ? '<br><span class="muted">' + esc(f.note) + '</span>' : '') + '</td>' +
+        '<td>' + (f.relation ? '<span class="tag">' + esc(f.relation) + '</span>' : '') +
+        '<span class="muted">' + esc(STATUS_TEXT[f.status] || f.status || '') + '</span>' +
+        (f.date ? '<br><span class="muted">' + esc(f.date) + '</span>' : '') + '</td>' +
+        '<td class="num">' + (money(f.gift) > 0
+          ? '<span class="money">¥' + fmt(f.gift) + '</span>'
+          : (f.giftNote ? '<span class="money">实物</span>' : '<span class="muted">—</span>')) +
+        (f.giftNote ? '<br><span class="muted">' + esc(f.giftNote) + '</span>' : '') +
+        '</td></tr>';
+    });
+    $('tbl').innerHTML = html;
+  }
+
+  /* ---------- 快照 ---------- */
+  if (snaps.length) {
+    $('cardSnap').hidden = false;
+    $('snaps').innerHTML = snaps.map(function (s, i) {
+      var d = new Date(s.at || 0);
+      var p = function (n) { return (n < 10 ? '0' : '') + n; };
+      var t = (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + p(d.getHours()) + ':' + p(d.getMinutes());
+      return '<div class="snap"><span class="snap-t">' + t + '</span>' +
+        '<span class="snap-n">' + (s.n || 0) + ' 人</span>' +
+        '<button data-snap="' + i + '">恢复这个</button></div>';
+    }).join('');
+    $('snaps').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-snap]');
+      if (!b) return;
+      var s = snaps[+b.dataset.snap];
+      if (!s || !s.data) { toast('这个快照是空的'); return; }
+      var n = 0;
+      try { n = JSON.parse(s.data).length; } catch (err) { toast('快照损坏，换一个'); return; }
+      if (!confirm('把名单恢复成这个快照的 ' + n + ' 条记录？\n当前的 ' + friends.length + ' 条会先存成新快照，不会丢。')) return;
+      try {
+        var cur = localStorage.getItem(K_FRIENDS);
+        if (cur) {
+          var ns = readJSON(K_SNAP, []) || [];
+          ns.unshift({ at: Date.now(), data: cur, n: friends.length });
+          localStorage.setItem(K_SNAP, JSON.stringify(ns.slice(0, 8)));
+        }
+        localStorage.setItem(K_FRIENDS, s.data);
+        toast('已恢复 ' + n + ' 条，正在刷新…');
+        setTimeout(function () { location.reload(); }, 900);
+      } catch (err) { toast('恢复失败：' + err.message); }
+    });
+  }
+
+  /* ---------- 导出 ---------- */
+  function download(name, text, type) {
+    var blob = new Blob([text], { type: type || 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  function copy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0';
+    document.body.appendChild(ta);
+    var done = function () { toast('已复制'); setTimeout(function () { ta.remove(); }, 300); };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        try { ta.select(); ta.setSelectionRange(0, 999999); document.execCommand('copy'); done(); }
+        catch (e) { toast('复制失败，长按下面的框手动选'); }
+      });
+    } else {
+      try { ta.select(); ta.setSelectionRange(0, 999999); document.execCommand('copy'); done(); }
+      catch (e) { toast('复制失败，长按下面的框手动选'); }
+    }
+  }
+
+  $('bJson').onclick = function () {
+    if (!friends.length) { toast('当前没有可导出的记录'); return; }
+    download('婚礼备忘录-抢救-' + today() + '.json', JSON.stringify({
+      app: 'wedding-memo', version: 4, exportedAt: new Date().toISOString(),
+      rescued: true, tags: tags, friends: friends
+    }, null, 2));
+    toast('已导出 ' + friends.length + ' 条');
+  };
+
+  $('bCode').onclick = function () {
+    if (!friends.length) { toast('当前没有可导出的记录'); return; }
+    try {
+      var payload = {
+        v: 3, t: tags,
+        f: friends.map(function (f) {
+          return [f.name, f.relation || '', f.date || '',
+            STATUS_ORDER.indexOf(f.status) < 0 ? 0 : STATUS_ORDER.indexOf(f.status),
+          f.note || '', f.updatedAt || 0, f.id || '',
+            money(f.gift), f.giftNote || '', f.giftAt || ''];
+        })
+      };
+      var bytes = new TextEncoder().encode(JSON.stringify(payload));
+      var bin = '';
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      copy('WM3:' + btoa(bin));
+    } catch (e) { toast('生成同步码失败：' + e.message); }
+  };
+
+  $('bText').onclick = function () {
+    if (!friends.length) { toast('当前没有可导出的记录'); return; }
+    copy('婚礼名单（' + friends.length + ' 人）\n' + friends.map(function (f, i) {
+      return (i + 1) + '. ' + f.name + (f.relation ? ' · ' + f.relation : '') +
+        ' · ' + (STATUS_TEXT[f.status] || '') +
+        (money(f.gift) > 0 ? ' · ¥' + fmt(f.gift) : (f.giftNote ? ' · ' + f.giftNote : '')) +
+        (f.note ? ' · ' + f.note : '');
+    }).join('\n'));
+  };
+
+  /* ---------- 诊断 ---------- */
+  var lines = [];
+  lines.push('地址 ' + location.href);
+  lines.push('来源 ' + location.origin);
+  var standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  lines.push('打开方式 ' + (standalone ? '桌面 App（standalone）' : '浏览器标签页'));
+  lines.push('网络 ' + (navigator.onLine ? '在线' : '离线'));
+  try {
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+    keys.sort();
+    lines.push('存储条目 ' + keys.length + ' 个');
+    keys.forEach(function (k) {
+      var v = readRaw(k) || '';
+      var extra = '';
+      if (k === K_FRIENDS || k === K_TAGS) {
+        try { var a = JSON.parse(v); if (Array.isArray(a)) extra = ' → ' + a.length + ' 项'; } catch (e) { extra = ' → 解析失败!'; }
+      }
+      if (k === K_SNAP) {
+        try { var s = JSON.parse(v); if (Array.isArray(s)) extra = ' → ' + s.length + ' 份快照 (' + s.map(function (x) { return x.n; }).join(',') + ' 人)'; } catch (e) { extra = ' → 解析失败!'; }
+      }
+      lines.push('  ' + k + ' = ' + v.length + ' 字节' + extra);
+    });
+  } catch (e) { lines.push('读取存储失败: ' + e.message); }
+  if ('serviceWorker' in navigator) {
+    lines.push('离线缓存 ' + (navigator.serviceWorker.controller ? '已生效' : '未生效'));
+    if (navigator.serviceWorker.controller) {
+      lines.push('  控制脚本 ' + navigator.serviceWorker.controller.scriptURL);
+    }
+  }
+  if (window.caches && caches.keys) {
+    caches.keys().then(function (ks) {
+      lines.push('缓存版本 ' + (ks.length ? ks.join(', ') : '(无)'));
+      $('diag').textContent = lines.join('\n');
+    }).catch(function () { $('diag').textContent = lines.join('\n'); });
+  }
+  lines.push('屏幕 ' + window.innerWidth + '×' + window.innerHeight);
+  lines.push('UA ' + navigator.userAgent);
+  $('diag').textContent = lines.join('\n');
+  $('bDiag').onclick = function () { copy($('diag').textContent); };
+})();
+</script>
+</body>
+</html>
