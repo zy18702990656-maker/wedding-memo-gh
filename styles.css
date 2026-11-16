@@ -366,3 +366,157 @@ h1,h2,h3{margin:0;font-weight:700}
 }
 .fab svg{width:26px;height:26px}
 .fab:active{transform:scale(.93)}
+
+/* ===================== 份子钱 ===================== */
+:root{
+  --money:#c62d2d;
+  --money-deep:#9b1f1f;
+  --money-soft:#fff2f0;
+  --money-line:rgba(198,45,45,.26);
+}
+
+/* 侧栏汇总面板 */
+.panel-gift .panel-head{background:linear-gradient(180deg,#fdeeec,#fff7f6)}
+.panel-gift .panel-head h2{color:var(--money-deep)}
+.panel-gift .link-btn{color:var(--money)}
+.gift-total{
+  display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;
+  padding:9px 12px;border-radius:11px;
+  background:linear-gradient(135deg,#fff4f2,#fff9f8);
+  border:1px solid var(--money-line);
+}
+.gift-total-cur{font-size:15px;font-weight:700;color:var(--money);transform:translateY(-1px)}
+.gift-total b{
+  font-size:27px;font-weight:700;line-height:1.05;color:var(--money-deep);
+  font-variant-numeric:tabular-nums;letter-spacing:-.6px;
+}
+.gift-total-sub{margin-left:auto;font-size:11.5px;font-weight:700;color:#b4756e}
+.gift-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:9px}
+.gm{
+  background:var(--blue-soft-2);border:1px solid var(--line);border-radius:9px;
+  padding:7px 3px;text-align:center;
+}
+.gm b{
+  display:block;font-size:14.5px;font-weight:700;color:var(--blue-deep);
+  font-variant-numeric:tabular-nums;line-height:1.15;
+}
+.gm span{display:block;margin-top:2px;font-size:10px;font-weight:700;color:var(--text-3)}
+.gift-seg button.on{background:var(--money);border-color:var(--money);color:#fff}
+
+/* 列表行上的金额按钮 */
+.money{
+  flex:0 0 auto;min-width:46px;text-align:center;border-radius:999px;
+  padding:6px 9px;font-size:12.5px;font-weight:700;
+  border:1.5px dashed rgba(198,45,45,.34);color:#b4756e;background:#fffafa;
+  font-variant-numeric:tabular-nums;transition:transform .1s;
+}
+.money i{font-style:normal;font-size:11px;margin-right:1px;opacity:.9}
+.money:active{transform:scale(.92)}
+/* 已记的做成实心红：和右边「确认出席」的淡底徽章拉开层次，金额才是视觉焦点 */
+.money.on{
+  border:1px solid var(--money-deep);min-width:58px;color:#fff;
+  background:linear-gradient(145deg,#d4423f,#b82424);
+  box-shadow:0 2px 8px rgba(198,45,45,.28);
+}
+.money.on i{opacity:.75}
+.money.kind{
+  border:1px solid var(--money-deep);color:#fff;
+  background:linear-gradient(145deg,#d4423f,#b82424);
+  box-shadow:0 2px 8px rgba(198,45,45,.28);
+}
+.row-meta .mway{color:var(--money);background:var(--money-soft);border-radius:5px;padding:1px 6px}
+
+/* 记份子弹层 */
+.sheet-gift .sheet-head{background:linear-gradient(180deg,#fdeeec,#fff7f6)}
+.sheet-gift .sheet-head h3{color:var(--money-deep)}
+.sheet-gift .link-btn.strong{color:var(--money);font-weight:700}
+.gift-who{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;
+  padding:10px 12px;background:var(--blue-soft-2);
+  border:1px solid var(--line);border-radius:11px;
+}
+.gift-who b{font-size:17px;font-weight:700;color:var(--blue-deep)}
+.gw-tag{font-size:11.5px;font-weight:700;color:var(--blue);background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+.gw-st{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px;margin-left:auto}
+
+.money-input{
+  display:flex;align-items:center;gap:8px;
+  border:1.5px solid var(--money-line);border-radius:13px;
+  background:var(--money-soft);padding:10px 13px;
+}
+.money-input:focus-within{border-color:var(--money);box-shadow:0 0 0 3px rgba(198,45,45,.12);background:#fff}
+.money-cur{font-size:22px;font-weight:700;color:var(--money);line-height:1}
+.money-input input{
+  flex:1;min-width:0;border:none;background:none;outline:none;
+  font-size:34px;font-weight:700;color:var(--money-deep);
+  letter-spacing:-1px;font-variant-numeric:tabular-nums;padding:0;
+  -webkit-appearance:none;appearance:none;
+}
+.money-input input::placeholder{color:#e2b3ad}
+.money-clear{
+  flex:0 0 auto;width:28px;height:28px;border-radius:50%;
+  background:rgba(198,45,45,.1);color:var(--money);font-size:17px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;line-height:1;
+}
+.quick-amt{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:11px}
+.quick-amt button{
+  padding:10px 2px;border-radius:10px;border:1px solid var(--line);
+  background:#fff;font-size:14px;font-weight:700;color:var(--text-2);
+  font-variant-numeric:tabular-nums;
+}
+.quick-amt button:active{transform:scale(.95)}
+.quick-amt button.on{
+  background:var(--money);border-color:var(--money);color:#fff;
+  box-shadow:0 2px 10px rgba(198,45,45,.3);
+}
+.gift-auto{
+  display:block;margin:2px 0 14px;padding:10px 12px;
+  background:var(--blue-soft-2);border:1px solid var(--line);border-radius:10px;
+}
+#gTagShow{color:var(--text-3);font-weight:600}
+
+/* 礼金台账 */
+.lg-top{text-align:center}
+.lg-total{display:flex;align-items:baseline;justify-content:center;gap:4px}
+.lg-total span{font-size:19px;font-weight:700;color:var(--money)}
+.lg-total b{
+  font-size:40px;font-weight:700;color:var(--money-deep);line-height:1.05;
+  font-variant-numeric:tabular-nums;letter-spacing:-1.4px;
+}
+.lg-sub{margin:4px 0 0;font-size:12.5px;font-weight:700;color:var(--text-3)}
+.lg-sum{color:var(--money);font-variant-numeric:tabular-nums;font-size:13.5px}
+.lgrow{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;
+  background:#fff;border:1px solid var(--line);border-radius:9px;
+}
+.lg-i{
+  flex:0 0 22px;font-size:11px;font-weight:700;color:var(--text-3);
+  font-variant-numeric:tabular-nums;
+}
+.lg-n{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px}
+.lg-n i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--blue);background:var(--blue-soft-2);border-radius:5px;padding:1px 5px}
+.lg-w{
+  flex:0 1 auto;max-width:34%;font-size:11px;font-weight:600;color:var(--text-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.lg-a{
+  flex:0 0 auto;font-size:14px;font-weight:700;color:var(--money);
+  font-variant-numeric:tabular-nums;
+}
+.lg-a.kind,.lg-sum.kind{color:var(--text-3);font-size:12px}
+.lg-miss{margin:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.9}
+.lg-empty{margin:0;font-size:12.5px;font-weight:600;color:var(--text-3)}
+
+/* 手机端收紧 */
+@media (max-width:430px){
+  .gift-total b{font-size:24px}
+  .gift-total-sub{font-size:11px}
+  .gm b{font-size:13.5px}
+  .gm span{font-size:9.5px}
+  .money{min-width:42px;padding:6px 7px;font-size:12px}
+  .money.on{min-width:54px}
+  .money-input input{font-size:30px}
+  .quick-amt button{padding:9px 2px;font-size:13.5px}
+  .lg-total b{font-size:34px}
+  .lg-w{max-width:26%}
+}

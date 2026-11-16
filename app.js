@@ -20,6 +20,8 @@
   var STATUS_TEXT = { notified: '已通知', confirmed: '确认出席', pending: '待确认', declined: '不来' };
   // 明细列表的状态排序权重：已通知 → 待确认 → 不来 → 确认出席（越小越靠前）
   var STATUS_RANK = { notified: 0, pending: 1, declined: 2, confirmed: 3 };
+  // 记份子弹层里的快捷金额（关中一带常见档位）
+  var QUICK_AMTS = [100, 200, 300, 500, 600, 800, 1000, 2000];
 
   /* ---------------- 状态 ---------------- */
   var friends = [];
@@ -29,8 +31,10 @@
   var pref = { sort: 'date-desc', group: false, fold: {} };
   var filterTag = null;      // null = 全部
   var filterStatus = 'all';
+  var filterGift = 'all';    // all | has(已随礼) | none(未随礼)
   var keyword = '';
   var editingId = null;
+  var giftingId = null;      // 正在记份子的那个人
   var pickedTag = '';
   var undoTimer = null;
 
@@ -95,8 +99,23 @@
       if (f.relation == null) f.relation = '';
       if (f.note == null) f.note = '';
       if (!f.date) f.date = today();
+      // 份子钱：gift=金额（0 表示没记），giftNote=收礼方式，giftAt=收到日期
+      f.gift = money(f.gift);
+      if (f.giftNote == null) f.giftNote = '';
+      if (f.giftAt == null) f.giftAt = '';
     });
   }
+
+  /* 金额归一：只认非负整数，脏数据一律当 0 */
+  function money(v) {
+    var n = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+  function fmtMoney(n) {
+    return String(money(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  /* 有没有记过份子：金额 > 0，或者只收了实物（金额 0 但写了方式） */
+  function hasGift(f) { return money(f.gift) > 0 || !!(f.giftNote || '').trim(); }
   function saveTags() { write(K_TAGS, customTags); }
   function savePref() { write(K_PREF, pref); }
 
@@ -154,10 +173,12 @@
   function visible() {
     var list = scopedByTag();
     if (filterStatus !== 'all') list = list.filter(function (f) { return f.status === filterStatus; });
+    if (filterGift === 'has') list = list.filter(hasGift);
+    else if (filterGift === 'none') list = list.filter(function (f) { return !hasGift(f); });
     if (keyword) {
       var k = keyword.toLowerCase();
       list = list.filter(function (f) {
-        return (f.name + ' ' + f.relation + ' ' + f.note).toLowerCase().indexOf(k) >= 0;
+        return (f.name + ' ' + f.relation + ' ' + f.note + ' ' + (f.giftNote || '')).toLowerCase().indexOf(k) >= 0;
       });
     }
     var s = pref.sort;
@@ -168,6 +189,14 @@
     list = list.slice().sort(function (a, b) {
       if (s === 'name') return byName(a, b) || byStatus(a, b);
       if (s === 'status') return byStatus(a, b) || -(a.date || '').localeCompare(b.date || '') || byName(a, b);
+      // 份子钱排序：没记过的永远沉底，方便对着名单查漏
+      if (s === 'gift-desc' || s === 'gift-asc') {
+        var ha = hasGift(a) ? 1 : 0, hb = hasGift(b) ? 1 : 0;
+        if (ha !== hb) return hb - ha;
+        var d = money(a.gift) - money(b.gift);
+        if (d) return s === 'gift-asc' ? d : -d;
+        return byName(a, b);
+      }
       // 日期优先；同一天内按 已通知 → 待确认 → 不来 → 确认出席；再按姓名
       var r = (a.date || '').localeCompare(b.date || '');
       if (s === 'date-asc') return r || byStatus(a, b) || byName(a, b);
@@ -187,9 +216,35 @@
     [].forEach.call(document.querySelectorAll('.stat'), function (b) {
       b.classList.toggle('on', b.dataset.status === filterStatus);
     });
+    var giftSum = friends.reduce(function (a, f) { return a + money(f.gift); }, 0);
     $('brandSub').textContent = friends.length
-      ? '共 ' + friends.length + ' 人 · 确认 ' + friends.filter(function (f) { return f.status === 'confirmed'; }).length + ' 人'
+      ? '共 ' + friends.length + ' 人 · 确认 ' + friends.filter(function (f) { return f.status === 'confirmed'; }).length + ' 人' +
+      (giftSum > 0 ? ' · 礼金 ¥' + fmtMoney(giftSum) : '')
       : '已通知名单 · 出席跟踪';
+  }
+
+  /* 礼金汇总：跟着当前标签范围走，点「亲戚」就只看亲戚那一摊 */
+  function renderGift() {
+    var scope = scopedByTag();
+    var got = scope.filter(hasGift);
+    var amts = got.map(function (f) { return money(f.gift); });
+    var total = amts.reduce(function (a, b) { return a + b; }, 0);
+    var paid = amts.filter(function (n) { return n > 0; });
+    var avg = paid.length ? Math.round(total / paid.length) : 0;
+    var max = paid.length ? Math.max.apply(null, paid) : 0;
+
+    $('gTotal').textContent = fmtMoney(total);
+    $('gCount').textContent = got.length;
+    $('gAvg').textContent = fmtMoney(avg);
+    $('gMax').textContent = fmtMoney(max);
+    $('gNone').textContent = scope.length - got.length;
+    $('gTotalSub').textContent = got.length
+      ? (filterTag ? filterTag + ' · ' : '') + got.length + ' 人已随礼'
+      : '还没记录';
+
+    [].forEach.call($('giftSeg').children, function (b) {
+      b.classList.toggle('on', b.dataset.gift === filterGift);
+    });
   }
 
   function renderTags() {
@@ -214,12 +269,22 @@
     var meta = [];
     if (f.relation) meta.push('<span class="mtag">' + esc(f.relation) + '</span>');
     if (f.date) meta.push('<span>' + esc(f.date.slice(5)) + '</span>');
+    if (f.giftNote) meta.push('<span class="mway">' + esc(f.giftNote) + '</span>');
     if (f.note) meta.push('<span class="mnote">' + esc(f.note) + '</span>');
+
+    var amt = money(f.gift);
+    var moneyBtn = amt > 0
+      ? '<button class="money on" data-gift="' + f.id + '" aria-label="改份子钱"><i>¥</i>' + fmtMoney(amt) + '</button>'
+      : (f.giftNote
+        ? '<button class="money kind" data-gift="' + f.id + '" aria-label="改份子钱">实物</button>'
+        : '<button class="money" data-gift="' + f.id + '" aria-label="记份子钱">¥</button>');
+
     return '<div class="row" data-id="' + f.id + '">' +
       '<div class="row-main">' +
       '<div class="row-name">' + esc(f.name) + '</div>' +
       (meta.length ? '<div class="row-meta">' + meta.join('') + '</div>' : '') +
       '</div>' +
+      moneyBtn +
       '<button class="badge b-' + f.status + '" data-toggle="' + f.id + '">' + STATUS_TEXT[f.status] + '</button>' +
       '</div>';
   }
@@ -227,9 +292,11 @@
   function renderList() {
     renderFold();
     var list = visible(), box = $('list');
-    $('listCount').textContent = list.length + ' 人';
+    var sum = list.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    $('listCount').textContent = list.length + ' 人' + (sum > 0 ? ' · ¥' + fmtMoney(sum) : '');
     $('listTitle').textContent = (filterTag === '__none__' ? '未分组' : (filterTag || '全部朋友')) +
-      (filterStatus === 'all' ? '' : ' · ' + STATUS_TEXT[filterStatus]);
+      (filterStatus === 'all' ? '' : ' · ' + STATUS_TEXT[filterStatus]) +
+      (filterGift === 'has' ? ' · 已随礼' : filterGift === 'none' ? ' · 未随礼' : '');
 
     if (!friends.length) { box.innerHTML = ''; $('empty').hidden = false; return; }
     $('empty').hidden = true;
@@ -263,7 +330,7 @@
     [].forEach.call(document.querySelectorAll('.panel[data-panel]'), function (p) {
       p.classList.toggle('collapsed', !!pref.fold[p.dataset.panel]);
     });
-    var active = (filterStatus !== 'all') || !!keyword || pref.group || pref.sort !== 'date-desc';
+    var active = (filterStatus !== 'all') || !!keyword || pref.group || pref.sort !== 'date-desc' || filterGift !== 'all';
     $('filterTip').hidden = !(active && pref.fold.filter);
   }
 
@@ -277,7 +344,7 @@
     renderFold();
   });
 
-  function render() { renderStats(); renderTags(); renderList(); }
+  function render() { renderStats(); renderGift(); renderTags(); renderList(); }
 
   /* ---------------- 交互 ---------------- */
   // 标签网格
@@ -313,6 +380,14 @@
     });
   }
 
+  // 份子钱筛选条
+  $('giftSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    filterGift = b.dataset.gift;
+    render();
+  });
+
   // 搜索
   $('search').addEventListener('input', function () {
     keyword = this.value.trim();
@@ -329,6 +404,8 @@
 
   // 列表点击
   $('list').addEventListener('click', function (e) {
+    var g = e.target.closest('[data-gift]');
+    if (g) { e.stopPropagation(); return openGift(g.dataset.gift); }
     var tgl = e.target.closest('[data-toggle]');
     if (tgl) { e.stopPropagation(); return cycleStatus(tgl.dataset.toggle); }
     var row = e.target.closest('.row');
@@ -375,6 +452,8 @@
     $('fStatus').value = f ? f.status : 'notified';
     $('fDate').value = f ? (f.date || today()) : today();
     $('fNote').value = f ? f.note : '';
+    $('fGift').value = f && money(f.gift) > 0 ? money(f.gift) : '';
+    $('fGiftNote').value = f ? (f.giftNote || '') : '';
     renderTagPicker();
 
     $('formMask').hidden = false;
@@ -386,6 +465,8 @@
     $('fName').hidden = on;
     $('fNames').hidden = !on;
     $('batchHint').hidden = !on;
+    // 批量录入时每人金额都不一样，份子钱字段没意义，直接藏掉
+    $('giftField').hidden = on;
     if (on) updateBatchHint();
   }
   $('fNames').addEventListener('input', updateBatchHint);
@@ -405,6 +486,17 @@
       status: $('fStatus').value,
       note: $('fNote').value.trim()
     };
+    if (!batch) {
+      var old = editingId ? friends.find(function (x) { return x.id === editingId; }) : null;
+      base.gift = money($('fGift').value);
+      base.giftNote = $('fGiftNote').value.trim();
+      // 第一次记上份子钱时补个收到日期，之前记过就保留原来的
+      base.giftAt = (base.gift > 0 || base.giftNote)
+        ? ((old && old.giftAt) || today())
+        : '';
+    } else {
+      base.gift = 0; base.giftNote = ''; base.giftAt = '';
+    }
 
     if (batch) {
       var names = splitNames($('fNames').value);
@@ -461,6 +553,106 @@
   $('formMask').addEventListener('click', function (e) { if (e.target === this) closeForm(); });
   $('btnAdd').addEventListener('click', function () { openForm(null); });
   $('btnEmptyAdd').addEventListener('click', function () { openForm(null); });
+
+  /* ---------------- 记份子（快捷弹层） ---------------- */
+  function openGift(id) {
+    var f = friends.find(function (x) { return x.id === id; });
+    if (!f) return;
+    giftingId = id;
+
+    var amt = money(f.gift);
+    $('giftTitle').textContent = hasGift(f) ? '改份子钱' : '记份子';
+    $('giftWho').innerHTML = '<b>' + esc(f.name) + '</b>' +
+      (f.relation ? '<span class="gw-tag">' + esc(f.relation) + '</span>' : '') +
+      '<span class="gw-st b-' + f.status + '">' + STATUS_TEXT[f.status] + '</span>';
+    $('gAmount').value = amt > 0 ? amt : '';
+    $('gWay').value = f.giftNote || '';
+    $('gDate').value = f.giftAt || today();
+    $('gTagShow').value = f.relation || '未分组';
+    $('btnGiftRemove').hidden = !hasGift(f);
+
+    // 已经是「确认出席」就不用再提了
+    var needConfirm = f.status !== 'confirmed';
+    $('giftAutoWrap').hidden = !needConfirm;
+    $('gAutoConfirm').checked = needConfirm;
+
+    renderQuickAmts();
+    syncGiftSaveLabel();
+    $('giftMask').hidden = false;
+  }
+  function closeGift() { $('giftMask').hidden = true; giftingId = null; }
+
+  function renderQuickAmts() {
+    var cur = money($('gAmount').value);
+    $('quickAmt').innerHTML = QUICK_AMTS.map(function (n) {
+      return '<button type="button" data-amt="' + n + '"' +
+        (cur === n ? ' class="on"' : '') + '>' + fmtMoney(n) + '</button>';
+    }).join('');
+  }
+  function syncGiftSaveLabel() {
+    var n = money($('gAmount').value);
+    var way = $('gWay').value.trim();
+    $('btnGiftSave').textContent = n > 0 ? '保存 ¥' + fmtMoney(n) : (way ? '保存' : '保存');
+  }
+
+  $('quickAmt').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-amt]');
+    if (!b) return;
+    var n = +b.dataset.amt;
+    // 再点一次已选中的档位 = 取消，省得手滑了还得去清空
+    $('gAmount').value = (money($('gAmount').value) === n) ? '' : n;
+    renderQuickAmts();
+    syncGiftSaveLabel();
+  });
+  $('gAmount').addEventListener('input', function () {
+    var v = this.value.replace(/[^\d]/g, '').slice(0, 7);
+    if (v !== this.value) this.value = v;
+    renderQuickAmts();
+    syncGiftSaveLabel();
+  });
+  $('gWay').addEventListener('input', syncGiftSaveLabel);
+  $('btnGiftClear').addEventListener('click', function () {
+    $('gAmount').value = '';
+    renderQuickAmts();
+    syncGiftSaveLabel();
+    $('gAmount').focus();
+  });
+
+  $('btnGiftSave').addEventListener('click', function () {
+    var f = friends.find(function (x) { return x.id === giftingId; });
+    if (!f) return closeGift();
+    var amt = money($('gAmount').value);
+    var way = $('gWay').value.trim();
+    if (!amt && !way) { toast('填个金额，或者写上收的什么实物'); $('gAmount').focus(); return; }
+
+    snapshot();
+    f.gift = amt;
+    f.giftNote = way;
+    f.giftAt = $('gDate').value || today();
+    if (!$('giftAutoWrap').hidden && $('gAutoConfirm').checked) f.status = 'confirmed';
+    f.updatedAt = now();
+    commit();
+    closeGift(); render();
+    toast(f.name + ' · ' + (amt > 0 ? '¥' + fmtMoney(amt) : way) + ' 已记下');
+  });
+
+  $('btnGiftRemove').addEventListener('click', function () {
+    var f = friends.find(function (x) { return x.id === giftingId; });
+    if (!f) return;
+    if (!confirm('清除「' + f.name + '」的份子钱记录？人还在名单里，只是金额清空。')) return;
+    snapshot();
+    var bk = { gift: money(f.gift), giftNote: f.giftNote, giftAt: f.giftAt };
+    f.gift = 0; f.giftNote = ''; f.giftAt = ''; f.updatedAt = now();
+    commit();
+    closeGift(); render();
+    toast('已清除', '撤销', function () {
+      f.gift = bk.gift; f.giftNote = bk.giftNote; f.giftAt = bk.giftAt; f.updatedAt = now();
+      commit(); render(); toast('已恢复');
+    });
+  });
+
+  $('btnGiftCancel').addEventListener('click', closeGift);
+  $('giftMask').addEventListener('click', function (e) { if (e.target === this) closeGift(); });
 
   /* ---------------- 标签管理 ---------------- */
   function addTagPrompt() {
@@ -548,6 +740,119 @@
       });
   }
 
+  /* ---------------- 礼金台账 ---------------- */
+  function ledgerRows() {
+    return friends.filter(hasGift).sort(function (a, b) {
+      return money(b.gift) - money(a.gift) ||
+        a.name.localeCompare(b.name, 'zh-Hans-CN');
+    });
+  }
+  function ledgerText() {
+    var rows = ledgerRows();
+    var total = rows.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    return '礼金台账 · ' + today() + '\n' +
+      '合计 ¥' + fmtMoney(total) + '（' + rows.length + ' 人）\n' +
+      '------------------------\n' +
+      rows.map(function (f, i) {
+        return (i + 1) + '. ' + f.name +
+          (f.relation ? '（' + f.relation + '）' : '') +
+          ' ¥' + fmtMoney(f.gift) +
+          (f.giftNote ? ' · ' + f.giftNote : '') +
+          (f.giftAt ? ' · ' + f.giftAt.slice(5) : '');
+      }).join('\n');
+  }
+
+  function openLedger() {
+    var rows = ledgerRows();
+    var total = rows.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    var missing = friends.filter(function (f) { return !hasGift(f); });
+
+    // 按标签分摊，方便回礼时按圈子看
+    var byTag = {};
+    rows.forEach(function (f) {
+      var t = f.relation || '未分组';
+      if (!byTag[t]) byTag[t] = { n: 0, sum: 0 };
+      byTag[t].n++; byTag[t].sum += money(f.gift);
+    });
+    var tagRows = allTags().concat(['未分组']).filter(function (t) { return byTag[t]; })
+      .map(function (t) {
+        // 这一摊全是实物礼时别显示 ¥0，容易看成"没收到"
+        var sum = byTag[t].sum > 0
+          ? '<b class="lg-sum">¥' + fmtMoney(byTag[t].sum) + '</b>'
+          : '<b class="lg-sum kind">仅实物</b>';
+        return '<div class="tagrow"><span class="tagrow-name">' + esc(t) + '</span>' +
+          '<em>' + byTag[t].n + ' 人</em>' + sum + '</div>';
+      }).join('');
+
+    var detail = rows.length
+      ? rows.map(function (f, i) {
+        return '<div class="lgrow"><span class="lg-i">' + (i + 1) + '</span>' +
+          '<span class="lg-n">' + esc(f.name) +
+          (f.relation ? '<i>' + esc(f.relation) + '</i>' : '') + '</span>' +
+          '<span class="lg-w">' + esc(f.giftNote || '') + '</span>' +
+          (money(f.gift) > 0
+            ? '<b class="lg-a">¥' + fmtMoney(f.gift) + '</b>'
+            : '<b class="lg-a kind">实物</b>') + '</div>';
+      }).join('')
+      : '<p class="lg-empty">还没记过份子钱。回到名单，点每个人右边的 ¥ 按钮就能记。</p>';
+
+    openModal('礼金台账',
+      '<div class="mod-sec lg-top"><div class="lg-total"><span>¥</span><b>' + fmtMoney(total) + '</b></div>' +
+      '<p class="lg-sub">' + rows.length + ' 人已随礼 · 还有 ' + missing.length + ' 人没记</p></div>' +
+      (tagRows ? '<div class="mod-sec"><h4>按标签分摊</h4>' + tagRows + '</div>' : '') +
+      '<div class="mod-sec"><h4>明细（金额多→少）</h4>' + detail + '</div>' +
+      (missing.length
+        ? '<div class="mod-sec"><h4>还没记的 ' + missing.length + ' 人</h4>' +
+        '<p class="lg-miss">' + missing.slice(0, 60).map(function (f) { return esc(f.name); }).join('、') +
+        (missing.length > 60 ? ' 等' : '') + '</p>' +
+        '<button class="sec-btn block" id="lgGoMissing">只看这些人</button></div>'
+        : '') +
+      '<div class="mod-sec"><h4>导出</h4>' +
+      '<p>复制成文字发微信，或导出 CSV 用 Excel 打开对账。</p>' +
+      '<div class="btns two"><button class="primary-btn" id="lgCopy">复制台账</button>' +
+      '<button class="sec-btn" id="lgCsv">导出 CSV</button></div></div>',
+      function (body) {
+        body.querySelector('#lgCopy').onclick = function () {
+          var ta = document.createElement('textarea');
+          ta.value = ledgerText();
+          ta.style.cssText = 'position:fixed;opacity:0;top:0';
+          document.body.appendChild(ta);
+          copyText(ta.value, ta);
+          setTimeout(function () { ta.remove(); }, 600);
+        };
+        body.querySelector('#lgCsv').onclick = exportCSV;
+        var miss = body.querySelector('#lgGoMissing');
+        if (miss) miss.onclick = function () {
+          filterGift = 'none'; filterStatus = 'all'; filterTag = null;
+          pref.fold.filter = false; savePref();
+          closeModal(); syncSeg(); render();
+          toast('已筛出还没记份子钱的 ' + missing.length + ' 人');
+        };
+      });
+  }
+  $('btnLedger').addEventListener('click', openLedger);
+
+  function exportCSV() {
+    var rows = ledgerRows();
+    if (!rows.length) { toast('还没有可导出的礼金记录'); return; }
+    var esc2 = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
+    var lines = [['姓名', '标签', '金额', '收礼方式', '收到日期', '出席状态', '备注'].map(esc2).join(',')];
+    rows.forEach(function (f) {
+      lines.push([f.name, f.relation || '', money(f.gift), f.giftNote || '',
+      f.giftAt || '', STATUS_TEXT[f.status], f.note || ''].map(esc2).join(','));
+    });
+    var total = rows.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    lines.push(['合计', '', total, '', '', rows.length + ' 人', ''].map(esc2).join(','));
+    // 带 BOM，Excel 打开才不乱码
+    var blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '礼金台账-' + today() + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+    toast('已导出 ' + rows.length + ' 条礼金记录');
+  }
+
   /* ---------------- 通用弹层 ---------------- */
   function openModal(title, html, after) {
     $('modalTitle').textContent = title;
@@ -565,15 +870,16 @@
   $('modalMask').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
 
   /* ---------------- 同步码（跨设备） ---------------- */
-  // 紧凑编码：[name, relation, date, statusIndex, note, updatedAt] 数组 → JSON → UTF8 → base64
+  // 紧凑编码：[name, relation, date, statusIndex, note, updatedAt, id, gift, giftNote, giftAt]
+  // 7~9 位是 v4.2 加的份子钱，老版本读到会忽略，新版本读老码按 0 / 空串兜底
   function encodeData() {
-    var tagList = allTags();
     var payload = {
       v: 3,
       t: customTags,
       f: friends.map(function (f) {
         return [f.name, f.relation || '', f.date || '', STATUS_ORDER.indexOf(f.status),
-        f.note || '', f.updatedAt || 0, f.id];
+        f.note || '', f.updatedAt || 0, f.id,
+        money(f.gift), f.giftNote || '', f.giftAt || ''];
       })
     };
     var json = JSON.stringify(payload);
@@ -595,7 +901,8 @@
       friends: obj.f.map(function (a) {
         return {
           id: a[6] || uid(), name: a[0], relation: a[1] || '', date: a[2] || today(),
-          status: STATUS_ORDER[a[3]] || 'notified', note: a[4] || '', updatedAt: a[5] || 0
+          status: STATUS_ORDER[a[3]] || 'notified', note: a[4] || '', updatedAt: a[5] || 0,
+          gift: money(a[7]), giftNote: a[8] || '', giftAt: a[9] || ''
         };
       })
     };
@@ -615,7 +922,13 @@
       var exist = byId[n.id] || byKey[n.name + '|' + (n.relation || '')];
       if (exist) {
         if ((n.updatedAt || 0) > (exist.updatedAt || 0)) {
+          // 份子钱是钱，不能被一份「不含金额的旧数据」覆盖掉：
+          // 对面没记而本机记了，就保留本机的
+          var keepGift = !hasGift(n) && hasGift(exist)
+            ? { gift: money(exist.gift), giftNote: exist.giftNote, giftAt: exist.giftAt }
+            : null;
           Object.assign(exist, n, { id: exist.id });
+          if (keepGift) Object.assign(exist, keepGift);
           updated++;
         } else skipped++;
       } else {
@@ -765,7 +1078,8 @@
                   id: f.id || uid(), name: f.name || '', relation: f.relation || '',
                   date: f.date || today(),
                   status: STATUS_ORDER.indexOf(f.status) >= 0 ? f.status : (f.status === 'replied' ? 'pending' : 'notified'),
-                  note: f.note || '', updatedAt: f.updatedAt || 0
+                  note: f.note || '', updatedAt: f.updatedAt || 0,
+                  gift: money(f.gift), giftNote: f.giftNote || '', giftAt: f.giftAt || ''
                 };
               }).filter(function (f) { return f.name; });
               if (!normalized.length) { toast('文件里没有可导入的记录'); return; }
@@ -809,7 +1123,8 @@
 
   function exportJSON() {
     var data = {
-      app: 'wedding-memo', version: 3, exportedAt: new Date().toISOString(),
+      app: 'wedding-memo', version: 4, exportedAt: new Date().toISOString(),
+      giftTotal: friends.reduce(function (a, f) { return a + money(f.gift); }, 0),
       tags: customTags, friends: friends
     };
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -826,11 +1141,13 @@
     var list = visible();
     if (!list.length) { toast('当前没有可复制的记录'); return; }
     var title = $('listTitle').textContent;
-    var text = title + '（' + list.length + ' 人）\n' +
+    var sum = list.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    var text = title + '（' + list.length + ' 人' + (sum > 0 ? ' · 礼金 ¥' + fmtMoney(sum) : '') + '）\n' +
       list.map(function (f, i) {
         return (i + 1) + '. ' + f.name +
           (f.relation ? ' · ' + f.relation : '') +
           ' · ' + STATUS_TEXT[f.status] +
+          (money(f.gift) > 0 ? ' · ¥' + fmtMoney(f.gift) : (f.giftNote ? ' · ' + f.giftNote : '')) +
           (f.note ? ' · ' + f.note : '');
       }).join('\n');
     var ta = document.createElement('textarea');
@@ -853,6 +1170,11 @@
       '</div>' +
       '<div class="mod-sec"><h4>快捷操作</h4>' +
       '<ul class="tiplist">' +
+      '<li><b>记份子钱：</b>点名字右边的「¥」按钮，选档位或手输金额，保存就行。记过的会直接显示红色金额。</li>' +
+      '<li>记完默认会把这个人标成「确认出席」，不想要就在弹层里取消勾选。</li>' +
+      '<li>收的是实物（烟酒、被褥）就把金额留空，在「收礼方式」里写清楚，台账里会显示「实物」。</li>' +
+      '<li>「份子钱」面板点「台账」看总额、按标签分摊、完整明细，能复制成文字或导出 CSV 对账。</li>' +
+      '<li>台账里点「只看这些人」，能一键筛出还没记份子钱的，适合婚礼后查漏。</li>' +
       '<li>点一下右边的状态徽章，就在「已通知 → 确认出席 → 待确认 → 不来」之间循环切换。</li>' +
       '<li>明细默认排序：通知日期新的在前；同一天内按「已通知 → 待确认 → 不来 → 确认出席」排，没落定的排在前面。</li>' +
       '<li>标签顺序可以自己调：标签分组右上角「管理」里用 ↑ ↓ 排，网格、表单、分组视图都跟着变。</li>' +
@@ -865,11 +1187,11 @@
       '<div class="mod-sec"><h4>自检信息</h4>' +
       '<p id="diagBox" style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.8">读取中…</p>' +
       '<button class="sec-btn block" id="btnCopyDiag">复制自检信息</button></div>' +
-      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.1 · iPhone 版</p></div>',
+      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.2 · iPhone 版</p></div>',
       function (body) {
         var lines = [
-          '版本 v4.1-iOS',
-          '记录 ' + friends.length + ' 条 · 自定义标签 ' + customTags.length + ' 个',
+          '版本 v4.2-iOS',
+          '记录 ' + friends.length + ' 条 · 礼金 ¥' + fmtMoney(friends.reduce(function(a,f){return a+money(f.gift);},0)) + ' · 标签 ' + customTags.length + ' 个',
           '网络 ' + (navigator.onLine ? '在线' : '离线'),
           '离线缓存 ' + ('serviceWorker' in navigator ? (navigator.serviceWorker.controller ? '已生效' : '未生效') : '不支持'),
           '运行模式 ' + (standalone ? '独立 App' : '浏览器标签页'),
@@ -893,7 +1215,8 @@
   /* ---------------- Esc 关闭弹层 ---------------- */
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (!$('formMask').hidden) closeForm();
+    if (!$('giftMask').hidden) closeGift();
+    else if (!$('formMask').hidden) closeForm();
     else if (!$('modalMask').hidden) closeModal();
   });
 

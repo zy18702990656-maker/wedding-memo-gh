@@ -42,6 +42,32 @@
       <button class="stat s-declined" data-status="declined"><b id="sDeclined">0</b><span>不来</span></button>
     </section>
 
+    <!-- 礼金汇总 -->
+    <section class="panel panel-gift" id="panelGift" data-panel="gift">
+      <div class="panel-head">
+        <h2 class="panel-toggle">份子钱<svg class="chev" viewBox="0 0 12 8"><path d="M1 2 6 7 11 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></h2>
+        <button class="link-btn" id="btnLedger">台账</button>
+      </div>
+      <div class="panel-body">
+        <div class="gift-total">
+          <span class="gift-total-cur">¥</span>
+          <b id="gTotal">0</b>
+          <span class="gift-total-sub" id="gTotalSub">还没记录</span>
+        </div>
+        <div class="gift-mini">
+          <div class="gm"><b id="gCount">0</b><span>已随礼</span></div>
+          <div class="gm"><b id="gAvg">0</b><span>人均</span></div>
+          <div class="gm"><b id="gMax">0</b><span>最高</span></div>
+          <div class="gm"><b id="gNone">0</b><span>未记</span></div>
+        </div>
+        <div class="seg gift-seg" id="giftSeg">
+          <button data-gift="all" class="on">全部</button>
+          <button data-gift="has">已随礼</button>
+          <button data-gift="none">未随礼</button>
+        </div>
+      </div>
+    </section>
+
     <!-- 标签 -->
     <section class="panel" id="panelTags" data-panel="tags">
       <div class="panel-head">
@@ -79,6 +105,8 @@
             <option value="date-asc">通知日期 · 旧→新</option>
             <option value="name">姓名拼音</option>
             <option value="status">按状态</option>
+            <option value="gift-desc">份子钱 · 多→少</option>
+            <option value="gift-asc">份子钱 · 少→多</option>
           </select>
           <label class="switch"><input type="checkbox" id="groupToggle"><span>按标签分组</span></label>
         </div>
@@ -163,12 +191,67 @@
         </label>
       </div>
 
+      <div class="field-row gift-field" id="giftField">
+        <label class="field">
+          <span class="label">份子钱（元）</span>
+          <input id="fGift" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="没有就留空" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="label">收礼方式</span>
+          <input id="fGiftNote" type="text" placeholder="现金 / 微信 / 实物" autocomplete="off">
+        </label>
+      </div>
+
       <label class="field">
         <span class="label">备注</span>
-        <input id="fNote" type="text" placeholder="随礼 / 桌位 / 是否带家属" autocomplete="off">
+        <input id="fNote" type="text" placeholder="桌位 / 是否带家属 / 谁代转的" autocomplete="off">
       </label>
 
       <button class="danger-btn" id="btnDelete" hidden>删除这条记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 记份子弹层 ============ -->
+<div class="sheet-mask" id="giftMask" hidden>
+  <div class="sheet sheet-gift" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="link-btn" id="btnGiftCancel">取消</button>
+      <h3 id="giftTitle">记份子</h3>
+      <button class="link-btn strong" id="btnGiftSave">保存</button>
+    </div>
+    <div class="sheet-body">
+      <div class="gift-who" id="giftWho"></div>
+
+      <div class="money-input">
+        <span class="money-cur">¥</span>
+        <input id="gAmount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off">
+        <button class="money-clear" id="btnGiftClear" aria-label="清空">×</button>
+      </div>
+
+      <div class="quick-amt" id="quickAmt"></div>
+
+      <label class="field" style="margin-top:14px">
+        <span class="label">收礼方式 / 备注</span>
+        <input id="gWay" type="text" placeholder="现金 / 微信转账 / 实物：四件套" autocomplete="off">
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="label">收到日期</span>
+          <input id="gDate" type="date">
+        </label>
+        <label class="field">
+          <span class="label">标签</span>
+          <input id="gTagShow" type="text" readonly>
+        </label>
+      </div>
+
+      <label class="gift-auto" id="giftAutoWrap">
+        <span class="switch"><input type="checkbox" id="gAutoConfirm" checked><span>同时标记为「确认出席」</span></span>
+      </label>
+
+      <button class="danger-btn" id="btnGiftRemove" hidden>清除这条份子钱记录</button>
     </div>
   </div>
 </div>

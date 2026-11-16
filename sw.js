@@ -1,5 +1,5 @@
 /* 婚礼通知备忘录 · Service Worker */
-var CACHE = 'wedding-memo-gh-v4.1.0';
+var CACHE = 'wedding-memo-gh-v4.2.0';
 var ASSETS = [
   './',
   './index.html',
