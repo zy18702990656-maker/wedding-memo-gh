@@ -33,6 +33,13 @@
       </button>
     </header>
 
+    <!-- 视图切换 -->
+    <nav class="tabs" id="tabs">
+      <button data-view="list" class="on"><span>名单</span><i id="tabListN">0 人</i></button>
+      <button data-view="gift"><span>份子钱</span><i id="tabGiftN">¥0</i></button>
+    </nav>
+
+    <div class="side-list" id="sideList">
     <!-- 统计 -->
     <section class="stats" id="stats">
       <button class="stat" data-status="all"><b id="sAll">0</b><span>总人数</span></button>
@@ -42,31 +49,15 @@
       <button class="stat s-declined" data-status="declined"><b id="sDeclined">0</b><span>不来</span></button>
     </section>
 
-    <!-- 礼金汇总 -->
-    <section class="panel panel-gift" id="panelGift" data-panel="gift">
-      <div class="panel-head">
-        <h2 class="panel-toggle">份子钱<svg class="chev" viewBox="0 0 12 8"><path d="M1 2 6 7 11 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></h2>
-        <button class="link-btn" id="btnLedger">台账</button>
-      </div>
-      <div class="panel-body">
-        <div class="gift-total">
-          <span class="gift-total-cur">¥</span>
-          <b id="gTotal">0</b>
-          <span class="gift-total-sub" id="gTotalSub">还没记录</span>
-        </div>
-        <div class="gift-mini">
-          <div class="gm"><b id="gCount">0</b><span>已随礼</span></div>
-          <div class="gm"><b id="gAvg">0</b><span>人均</span></div>
-          <div class="gm"><b id="gMax">0</b><span>最高</span></div>
-          <div class="gm"><b id="gNone">0</b><span>未记</span></div>
-        </div>
-        <div class="seg gift-seg" id="giftSeg">
-          <button data-gift="all" class="on">全部</button>
-          <button data-gift="has">已随礼</button>
-          <button data-gift="none">未随礼</button>
-        </div>
-      </div>
-    </section>
+    <!-- 礼金速览（点进份子钱页） -->
+    <button class="gift-peek" id="giftPeek">
+      <span class="gp-ico">¥</span>
+      <span class="gp-main">
+        <b id="gpTotal">0</b>
+        <small id="gpSub">还没记份子钱</small>
+      </span>
+      <span class="gp-go">查看 ›</span>
+    </button>
 
     <!-- 标签 -->
     <section class="panel" id="panelTags" data-panel="tags">
@@ -123,11 +114,12 @@
         备份与恢复
       </button>
     </div>
+    </div><!-- /side-list -->
   </aside>
 
   <!-- ============ 主内容 ============ -->
   <main class="main">
-    <div class="main-inner">
+    <div class="main-inner" id="viewList">
       <div class="list-head">
         <h2 id="listTitle">全部朋友</h2>
         <div class="list-head-right">
@@ -141,6 +133,60 @@
         <p class="empty-title">这里还没有人</p>
         <p class="empty-sub">点右下角「＋」记下你已经通知过的朋友</p>
         <button class="primary-btn" id="btnEmptyAdd">添加第一位</button>
+      </div>
+    </div>
+
+    <!-- ============ 份子钱独立页 ============ -->
+    <div class="main-inner" id="viewGift" hidden>
+      <div class="gcard gcard-hero">
+        <div class="hero-label">已收礼金合计</div>
+        <div class="hero-total"><span>¥</span><b id="gTotal">0</b></div>
+        <div class="hero-sub" id="gTotalSub">还没记录</div>
+        <div class="hero-bar"><i id="gBar" style="width:0%"></i></div>
+        <div class="hero-bar-tip"><span id="gBarL">0 人已随礼</span><span id="gBarR">共 0 人</span></div>
+      </div>
+
+      <div class="gift-mini">
+        <div class="gm"><b id="gCount">0</b><span>已随礼</span></div>
+        <div class="gm"><b id="gAvg">0</b><span>人均</span></div>
+        <div class="gm"><b id="gMax">0</b><span>最高</span></div>
+        <div class="gm"><b id="gNone">0</b><span>还没记</span></div>
+      </div>
+
+      <div class="gcard">
+        <div class="gcard-head"><h3>按标签分摊</h3><span id="gTagScope"></span></div>
+        <div id="gTagRows" class="gtag-rows"></div>
+      </div>
+
+      <div class="gcard gcard-tools">
+        <div class="search-wrap">
+          <svg class="search-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <input id="gSearch" type="search" placeholder="搜姓名 / 标签 / 收礼方式" autocomplete="off">
+        </div>
+        <div class="seg gift-seg" id="giftSeg">
+          <button data-gift="all" class="on">全部</button>
+          <button data-gift="has">已随礼</button>
+          <button data-gift="none">还没记</button>
+        </div>
+        <div class="sort-row">
+          <label for="gSortSel">排序</label>
+          <select id="gSortSel">
+            <option value="gift-desc">金额 · 多→少</option>
+            <option value="gift-asc">金额 · 少→多</option>
+            <option value="giftat-desc">收到日期 · 新→旧</option>
+            <option value="name">姓名拼音</option>
+            <option value="tag">按标签</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="gList" class="glist"></div>
+
+      <div class="gcard gcard-export">
+        <div class="btns two">
+          <button class="primary-btn" id="lgCopy">复制台账</button>
+          <button class="sec-btn" id="lgCsv">导出 CSV</button>
+        </div>
       </div>
     </div>
   </main>

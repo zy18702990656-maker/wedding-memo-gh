@@ -34,7 +34,7 @@ body{
     linear-gradient(transparent 0 0);
   background-attachment:fixed;
   font-size:15px;line-height:1.5;
-  overflow-x:hidden;
+  overflow-x:clip;
   -webkit-text-size-adjust:100%;
 }
 body::before{
@@ -129,13 +129,13 @@ h1,h2,h3{margin:0;font-weight:700}
 /* ===================== 搜索 / 筛选 ===================== */
 .search-wrap{position:relative;display:flex;align-items:center}
 .search-ico{position:absolute;left:11px;width:16px;height:16px;color:var(--text-3);pointer-events:none}
-#search{
+#search,#gSearch{
   width:100%;height:40px;border-radius:10px;border:1px solid var(--line);
   background:var(--blue-soft-2);padding:0 34px 0 34px;font-size:14px;font-weight:500;
   outline:none;transition:border-color .12s,background .12s;-webkit-appearance:none;
 }
-#search:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(11,111,196,.12)}
-#search::-webkit-search-cancel-button{display:none}
+#search:focus,#gSearch:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(11,111,196,.12)}
+#search::-webkit-search-cancel-button,#gSearch::-webkit-search-cancel-button{display:none}
 .clear-btn{position:absolute;right:6px;width:26px;height:26px;border-radius:50%;color:var(--text-3);font-size:18px;line-height:1}
 .seg{display:flex;gap:5px;margin-top:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .seg::-webkit-scrollbar{display:none}
@@ -344,7 +344,7 @@ h1,h2,h3{margin:0;font-weight:700}
 .tag{flex-direction:row;gap:4px;padding:8px 4px;font-size:12px;border-radius:9px}
 .tag i{font-size:10px;opacity:.8}
 .tag.add{padding:6px 4px}
-#search{height:38px}
+#search,#gSearch{height:38px}
 .seg{margin-top:8px}
 .sort-row{margin-top:9px}
 .side-foot{padding-bottom:0;gap:6px}
@@ -407,9 +407,11 @@ h1,h2,h3{margin:0;font-weight:700}
 .money{
   flex:0 0 auto;min-width:46px;text-align:center;border-radius:999px;
   padding:6px 9px;font-size:12.5px;font-weight:700;
-  border:1.5px dashed rgba(198,45,45,.34);color:#b4756e;background:#fffafa;
+  border:1px solid var(--line);color:var(--text-3);background:var(--blue-soft-2);
   font-variant-numeric:tabular-nums;transition:transform .1s;
 }
+/* 未随礼：灰底灰字，和红色的已随礼形成强对比，一眼扫到底 */
+.money.none{min-width:58px;font-weight:700;letter-spacing:.3px}
 .money i{font-style:normal;font-size:11px;margin-right:1px;opacity:.9}
 .money:active{transform:scale(.92)}
 /* 已记的做成实心红：和右边「确认出席」的淡底徽章拉开层次，金额才是视觉焦点 */
@@ -475,38 +477,6 @@ h1,h2,h3{margin:0;font-weight:700}
 }
 #gTagShow{color:var(--text-3);font-weight:600}
 
-/* 礼金台账 */
-.lg-top{text-align:center}
-.lg-total{display:flex;align-items:baseline;justify-content:center;gap:4px}
-.lg-total span{font-size:19px;font-weight:700;color:var(--money)}
-.lg-total b{
-  font-size:40px;font-weight:700;color:var(--money-deep);line-height:1.05;
-  font-variant-numeric:tabular-nums;letter-spacing:-1.4px;
-}
-.lg-sub{margin:4px 0 0;font-size:12.5px;font-weight:700;color:var(--text-3)}
-.lg-sum{color:var(--money);font-variant-numeric:tabular-nums;font-size:13.5px}
-.lgrow{
-  display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;
-  background:#fff;border:1px solid var(--line);border-radius:9px;
-}
-.lg-i{
-  flex:0 0 22px;font-size:11px;font-weight:700;color:var(--text-3);
-  font-variant-numeric:tabular-nums;
-}
-.lg-n{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px}
-.lg-n i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--blue);background:var(--blue-soft-2);border-radius:5px;padding:1px 5px}
-.lg-w{
-  flex:0 1 auto;max-width:34%;font-size:11px;font-weight:600;color:var(--text-3);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.lg-a{
-  flex:0 0 auto;font-size:14px;font-weight:700;color:var(--money);
-  font-variant-numeric:tabular-nums;
-}
-.lg-a.kind,.lg-sum.kind{color:var(--text-3);font-size:12px}
-.lg-miss{margin:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.9}
-.lg-empty{margin:0;font-size:12.5px;font-weight:600;color:var(--text-3)}
-
 /* 手机端收紧 */
 @media (max-width:430px){
   .gift-total b{font-size:24px}
@@ -520,3 +490,186 @@ h1,h2,h3{margin:0;font-weight:700}
   .lg-total b{font-size:34px}
   .lg-w{max-width:26%}
 }
+
+/* ===================== 视图切换 Tab ===================== */
+.tabs{
+  display:grid;grid-template-columns:1fr 1fr;gap:6px;
+  background:rgba(255,255,255,.72);border:1px solid var(--line);
+  border-radius:13px;padding:5px;box-shadow:var(--shadow);
+}
+.tabs button{
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  padding:8px 4px;border-radius:9px;border:1px solid transparent;
+  transition:background .14s,border-color .14s;
+}
+.tabs button span{font-size:13.5px;font-weight:700;color:var(--text-3)}
+.tabs button i{font-style:normal;font-size:11px;font-weight:700;color:var(--text-3);opacity:.75;font-variant-numeric:tabular-nums}
+.tabs button.on{background:#fff;border-color:var(--line);box-shadow:0 1px 3px rgba(8,70,140,.1)}
+.tabs button.on span{color:var(--blue-deep)}
+.tabs button.on i{color:var(--blue);opacity:1}
+.tabs button[data-view="gift"].on span{color:var(--money-deep)}
+.tabs button[data-view="gift"].on i{color:var(--money)}
+
+/* 名单页的礼金速览条 */
+.gift-peek{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:11px 13px;border-radius:var(--radius);
+  background:linear-gradient(135deg,#fff5f3,#fffafa);
+  border:1px solid var(--money-line);box-shadow:var(--shadow);
+}
+.gift-peek:active{transform:scale(.995)}
+.gp-ico{
+  flex:0 0 32px;height:32px;border-radius:9px;
+  background:linear-gradient(145deg,#d4423f,#b82424);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:700;
+}
+.gp-main{flex:1;min-width:0}
+.gp-main b{
+  display:block;font-size:19px;font-weight:700;color:var(--money-deep);
+  line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.4px;
+}
+.gp-main small{display:block;margin-top:1px;font-size:11.5px;font-weight:700;color:#b4756e}
+.gp-go{flex:0 0 auto;font-size:12.5px;font-weight:700;color:var(--money)}
+
+/* 份子钱视图下收起名单页的侧栏内容 */
+body.view-gift .side-list{display:none}
+body.view-gift .fab{display:none}
+
+/* ===================== 份子钱独立页 ===================== */
+.gcard{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:14px;margin-bottom:12px;
+}
+.gcard-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+.gcard-head h3{font-size:13.5px;font-weight:700;color:var(--blue-deep)}
+.gcard-head span{font-size:11.5px;font-weight:700;color:var(--money)}
+
+.gcard-hero{
+  background:linear-gradient(145deg,#fff3f1,#fffbfa);
+  border-color:var(--money-line);text-align:center;padding:20px 16px 16px;
+}
+.hero-label{font-size:12px;font-weight:700;color:#b4756e;letter-spacing:.4px}
+.hero-total{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-top:5px}
+.hero-total span{font-size:21px;font-weight:700;color:var(--money)}
+.hero-total b{
+  font-size:46px;font-weight:700;color:var(--money-deep);line-height:1.02;
+  font-variant-numeric:tabular-nums;letter-spacing:-1.8px;
+}
+.hero-sub{margin-top:3px;font-size:12.5px;font-weight:700;color:#b4756e}
+.hero-bar{
+  height:7px;border-radius:999px;background:rgba(198,45,45,.13);
+  margin:14px 0 6px;overflow:hidden;
+}
+.hero-bar i{
+  display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,#d4423f,#b82424);
+  transition:width .3s cubic-bezier(.2,.9,.3,1);
+}
+.hero-bar-tip{display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#b4756e}
+
+/* 标签分摊 */
+.gtag-rows{display:flex;flex-direction:column;gap:9px}
+.gtr{display:block;width:100%;text-align:left}
+.gtr:active{opacity:.7}
+.gtr-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.gtr-name{font-size:13.5px;font-weight:700;color:var(--text)}
+.gtr-sum{font-size:14.5px;font-weight:700;color:var(--money);font-variant-numeric:tabular-nums}
+.gtr-sum.muted{color:var(--text-3);font-size:12px}
+.gtr-fill{display:block;height:6px;border-radius:999px;background:var(--blue-soft);margin:5px 0 3px;overflow:hidden}
+.gtr-fill i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#e06663,#c62d2d)}
+.gtr-sub{display:block;font-size:11px;font-weight:700;color:var(--text-3)}
+
+.gcard-tools{padding:12px 13px}
+.gcard-tools .search-wrap{margin:0}
+.gcard-tools .sort-row{margin-top:10px}
+.gcard-export{padding:13px}
+
+/* 明细分段 */
+.glist-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:16px 2px 9px;
+}
+.glist-head h3{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:700}
+.glist-head h3 i{
+  font-style:normal;font-size:11px;font-weight:700;border-radius:999px;
+  padding:2px 8px;line-height:1.5;
+}
+.glist-head.paid h3{color:var(--money-deep)}
+.glist-head.paid h3 i{background:var(--money-soft);color:var(--money);border:1px solid var(--money-line)}
+.glist-head.paid b{font-size:15px;font-weight:700;color:var(--money);font-variant-numeric:tabular-nums}
+.glist-head.todo h3{color:var(--text-2)}
+.glist-head.todo h3 i{background:var(--blue-soft-2);color:var(--text-3);border:1px solid var(--line)}
+.glist-head.todo span{font-size:11.5px;font-weight:700;color:var(--text-3)}
+
+.grow{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:#fff;border:1px solid var(--line);border-radius:11px;
+  padding:10px 12px;margin-bottom:7px;box-shadow:var(--shadow);
+  transition:transform .08s,border-color .12s;
+}
+.grow:active{transform:scale(.995);border-color:var(--line-strong)}
+.grow.paid{border-left:3px solid var(--money)}
+.gr-i{
+  flex:0 0 20px;font-size:11px;font-weight:700;color:var(--text-3);
+  font-variant-numeric:tabular-nums;
+}
+.gr-main{flex:1;min-width:0}
+.gr-name{display:block;font-size:14.5px;font-weight:700;color:var(--text);letter-spacing:-.1px}
+.gr-sub{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;font-size:11px;font-weight:600;color:var(--text-3)}
+.gr-tag{font-style:normal;color:var(--blue);background:var(--blue-soft-2);border-radius:5px;padding:1px 6px}
+.gr-way{color:var(--money);background:var(--money-soft);border-radius:5px;padding:1px 6px}
+.gr-st{border-radius:999px;padding:1px 7px;font-weight:700}
+.gr-amt{
+  flex:0 0 auto;font-size:16px;font-weight:700;color:var(--money);
+  font-variant-numeric:tabular-nums;letter-spacing:-.3px;
+}
+.gr-amt.kind{font-size:12.5px;color:var(--text-3)}
+.gr-add{
+  flex:0 0 auto;font-size:12px;font-weight:700;color:var(--money);
+  background:var(--money-soft);border:1px dashed var(--money-line);
+  border-radius:999px;padding:5px 11px;
+}
+.gempty{
+  padding:18px 14px;text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);
+  background:#fff;border:1px dashed var(--line-strong);border-radius:11px;
+}
+.gempty.done{color:var(--money);border-color:var(--money-line);background:var(--money-soft)}
+.lg-empty{margin:0;font-size:12.5px;font-weight:600;color:var(--text-3)}
+
+@media (max-width:430px){
+  .hero-total b{font-size:40px}
+  .gcard{padding:12px}
+  .gcard-hero{padding:18px 14px 14px}
+  .gr-name{font-size:14px}
+  .gr-amt{font-size:15px}
+  .tabs button span{font-size:13px}
+}
+
+/* ===================== Tab 固定吸顶 ===================== */
+/* sticky 会被 .side 的高度限制住（滚出侧栏就跟着走），所以直接 fixed */
+:root{--tabh:62px}
+.tabs{
+  position:fixed;top:0;left:0;right:0;z-index:40;
+  display:flex;justify-content:center;gap:6px;
+  border-radius:0;border:none;border-bottom:1px solid var(--line);
+  padding:calc(6px + var(--st)) 12px 6px;
+  background:#eef4fd;
+  -webkit-backdrop-filter:saturate(1.6) blur(10px);
+  backdrop-filter:saturate(1.6) blur(10px);
+  box-shadow:0 2px 12px rgba(8,70,140,.07);
+}
+.tabs button{flex:1;max-width:260px}
+/* 给固定的 Tab 条让位 */
+.side{padding-top:calc(10px + var(--st) + var(--tabh))}
+body.view-gift .side{padding-bottom:0}
+body.view-gift .brand{display:none}
+body.view-gift .main{padding-top:4px}
+
+@media (max-width:430px){
+  :root{--tabh:58px}
+  .side{padding-top:calc(6px + var(--st) + var(--tabh))}
+}
+/* 份子钱页的主按钮跟着页面走红色系 */
+.gcard-export .primary-btn{background:linear-gradient(145deg,#d4423f,#b82424);box-shadow:0 2px 10px rgba(198,45,45,.3)}
+.gcard-export .sec-btn{color:var(--money);border-color:var(--money-line);background:var(--money-soft)}

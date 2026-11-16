@@ -31,7 +31,10 @@
   var pref = { sort: 'date-desc', group: false, fold: {} };
   var filterTag = null;      // null = 全部
   var filterStatus = 'all';
-  var filterGift = 'all';    // all | has(已随礼) | none(未随礼)
+  var filterGift = 'all';    // all | has(已随礼) | none(还没记)
+  var giftKeyword = '';      // 份子钱页的搜索词
+  var giftSort = 'gift-desc';// 份子钱页的排序
+  var view = 'list';         // list | gift
   var keyword = '';
   var editingId = null;
   var giftingId = null;      // 正在记份子的那个人
@@ -173,8 +176,6 @@
   function visible() {
     var list = scopedByTag();
     if (filterStatus !== 'all') list = list.filter(function (f) { return f.status === filterStatus; });
-    if (filterGift === 'has') list = list.filter(hasGift);
-    else if (filterGift === 'none') list = list.filter(function (f) { return !hasGift(f); });
     if (keyword) {
       var k = keyword.toLowerCase();
       list = list.filter(function (f) {
@@ -223,7 +224,7 @@
       : '已通知名单 · 出席跟踪';
   }
 
-  /* 礼金汇总：跟着当前标签范围走，点「亲戚」就只看亲戚那一摊 */
+  /* 礼金页：汇总 + 分摊 + 明细。跟着当前标签范围走，点「亲戚」就只看亲戚那一摊 */
   function renderGift() {
     var scope = scopedByTag();
     var got = scope.filter(hasGift);
@@ -233,18 +234,135 @@
     var avg = paid.length ? Math.round(total / paid.length) : 0;
     var max = paid.length ? Math.max.apply(null, paid) : 0;
 
+    // 顶部 Tab 常驻显示总额，不用切过去也知道收了多少
+    $('tabListN').textContent = friends.length + ' 人';
+    $('tabGiftN').textContent = '¥' + fmtMoney(friends.reduce(function (a, f) { return a + money(f.gift); }, 0));
+
+    // 名单页的速览条
+    var allGot = friends.filter(hasGift).length;
+    $('gpTotal').textContent = '¥' + fmtMoney(friends.reduce(function (a, f) { return a + money(f.gift); }, 0));
+    $('gpSub').textContent = allGot
+      ? allGot + ' 人已随礼 · 还有 ' + (friends.length - allGot) + ' 人没记'
+      : '还没记份子钱';
+
     $('gTotal').textContent = fmtMoney(total);
     $('gCount').textContent = got.length;
     $('gAvg').textContent = fmtMoney(avg);
     $('gMax').textContent = fmtMoney(max);
     $('gNone').textContent = scope.length - got.length;
     $('gTotalSub').textContent = got.length
-      ? (filterTag ? filterTag + ' · ' : '') + got.length + ' 人已随礼'
+      ? (filterTag && filterTag !== '__none__' ? filterTag + ' · ' : '') + got.length + ' 人已随礼'
       : '还没记录';
+
+    var pct = scope.length ? Math.round(got.length / scope.length * 100) : 0;
+    $('gBar').style.width = pct + '%';
+    $('gBarL').textContent = got.length + ' 人已随礼（' + pct + '%）';
+    $('gBarR').textContent = '共 ' + scope.length + ' 人';
+    $('gTagScope').textContent = filterTag && filterTag !== '__none__' ? '当前：' + filterTag : '';
+
+    renderGiftTagRows(scope);
+    renderGiftList(scope);
 
     [].forEach.call($('giftSeg').children, function (b) {
       b.classList.toggle('on', b.dataset.gift === filterGift);
     });
+  }
+
+  /* 按标签分摊，回礼时按圈子看 */
+  function renderGiftTagRows(scope) {
+    var byTag = {};
+    scope.forEach(function (f) {
+      var t = f.relation || '未分组';
+      if (!byTag[t]) byTag[t] = { n: 0, got: 0, sum: 0 };
+      byTag[t].n++;
+      if (hasGift(f)) { byTag[t].got++; byTag[t].sum += money(f.gift); }
+    });
+    var keys = allTags().concat(['未分组']).filter(function (t) { return byTag[t]; });
+    var maxSum = Math.max.apply(null, keys.map(function (t) { return byTag[t].sum; }).concat([1]));
+
+    $('gTagRows').innerHTML = keys.length
+      ? keys.map(function (t) {
+        var d = byTag[t];
+        var amount = d.sum > 0 ? '¥' + fmtMoney(d.sum) : (d.got ? '仅实物' : '—');
+        return '<button class="gtr" data-tagjump="' + esc(t) + '">' +
+          '<span class="gtr-top">' +
+          '<span class="gtr-name">' + esc(t) + '</span>' +
+          '<b class="gtr-sum' + (d.sum > 0 ? '' : ' muted') + '">' + amount + '</b>' +
+          '</span>' +
+          '<span class="gtr-fill"><i style="width:' + Math.round(d.sum / maxSum * 100) + '%"></i></span>' +
+          '<span class="gtr-sub">' + d.got + '/' + d.n + ' 人已随</span>' +
+          '</button>';
+      }).join('')
+      : '<p class="lg-empty">还没有人分组。</p>';
+  }
+
+  /* 明细：分「已随礼 / 还没记」两段，谁随了谁没随一眼看清 */
+  function renderGiftList(scope) {
+    var list = scope.slice();
+    if (giftKeyword) {
+      var k = giftKeyword.toLowerCase();
+      list = list.filter(function (f) {
+        return (f.name + ' ' + f.relation + ' ' + (f.giftNote || '') + ' ' + f.note).toLowerCase().indexOf(k) >= 0;
+      });
+    }
+    var got = list.filter(hasGift);
+    var none = list.filter(function (f) { return !hasGift(f); });
+
+    var s = giftSort;
+    var byName = function (a, b) { return a.name.localeCompare(b.name, 'zh-Hans-CN'); };
+    got.sort(function (a, b) {
+      if (s === 'name') return byName(a, b);
+      if (s === 'tag') return (a.relation || '~').localeCompare(b.relation || '~', 'zh-Hans-CN') || byName(a, b);
+      if (s === 'giftat-desc') return -((a.giftAt || '').localeCompare(b.giftAt || '')) || byName(a, b);
+      var d = money(a.gift) - money(b.gift);
+      return (s === 'gift-asc' ? d : -d) || byName(a, b);
+    });
+    none.sort(function (a, b) {
+      // 「不来」的人多半不随礼，沉到最后，别干扰要补记的人
+      var da = a.status === 'declined' ? 1 : 0, db = b.status === 'declined' ? 1 : 0;
+      if (da !== db) return da - db;
+      if (s === 'tag') return (a.relation || '~').localeCompare(b.relation || '~', 'zh-Hans-CN') || byName(a, b);
+      return byName(a, b);
+    });
+
+    var sum = got.reduce(function (a, f) { return a + money(f.gift); }, 0);
+    var html = '';
+
+    if (filterGift !== 'none') {
+      html += '<div class="glist-head paid"><h3>已随礼 <i>' + got.length + '</i></h3>' +
+        '<b>¥' + fmtMoney(sum) + '</b></div>';
+      html += got.length
+        ? got.map(function (f, i) { return giftRowHTML(f, i + 1, true); }).join('')
+        : '<div class="gempty">这个范围内还没有人随礼。</div>';
+    }
+    if (filterGift !== 'has') {
+      html += '<div class="glist-head todo"><h3>还没记 <i>' + none.length + '</i></h3>' +
+        (none.length ? '<span>点右边「记一笔」补上</span>' : '<span>全都记齐了</span>') + '</div>';
+      html += none.length
+        ? none.map(function (f) { return giftRowHTML(f, 0, false); }).join('')
+        : '<div class="gempty done">这个范围内的人都记完了。</div>';
+    }
+    $('gList').innerHTML = html;
+  }
+
+  function giftRowHTML(f, idx, paid) {
+    var sub = [];
+    if (f.relation) sub.push('<i class="gr-tag">' + esc(f.relation) + '</i>');
+    if (paid && f.giftNote) sub.push('<span class="gr-way">' + esc(f.giftNote) + '</span>');
+    if (paid && f.giftAt) sub.push('<span>' + esc(f.giftAt.slice(5)) + '</span>');
+    if (!paid) sub.push('<span class="gr-st b-' + f.status + '">' + STATUS_TEXT[f.status] + '</span>');
+
+    var right = paid
+      ? (money(f.gift) > 0
+        ? '<b class="gr-amt">¥' + fmtMoney(f.gift) + '</b>'
+        : '<b class="gr-amt kind">实物</b>')
+      : '<span class="gr-add">记一笔 ›</span>';
+
+    return '<button class="grow' + (paid ? ' paid' : '') + '" data-gift="' + f.id + '">' +
+      (paid ? '<span class="gr-i">' + idx + '</span>' : '') +
+      '<span class="gr-main"><span class="gr-name">' + esc(f.name) + '</span>' +
+      (sub.length ? '<span class="gr-sub">' + sub.join('') + '</span>' : '') + '</span>' +
+      right + '</button>';
   }
 
   function renderTags() {
@@ -273,13 +391,14 @@
     if (f.note) meta.push('<span class="mnote">' + esc(f.note) + '</span>');
 
     var amt = money(f.gift);
+    // 是否随礼要一眼看出来：红色=收到了，灰色「未随」=还没记
     var moneyBtn = amt > 0
       ? '<button class="money on" data-gift="' + f.id + '" aria-label="改份子钱"><i>¥</i>' + fmtMoney(amt) + '</button>'
       : (f.giftNote
         ? '<button class="money kind" data-gift="' + f.id + '" aria-label="改份子钱">实物</button>'
-        : '<button class="money" data-gift="' + f.id + '" aria-label="记份子钱">¥</button>');
+        : '<button class="money none" data-gift="' + f.id + '" aria-label="记份子钱">未随</button>');
 
-    return '<div class="row" data-id="' + f.id + '">' +
+    return '<div class="row' + (hasGift(f) ? ' paid' : '') + '" data-id="' + f.id + '">' +
       '<div class="row-main">' +
       '<div class="row-name">' + esc(f.name) + '</div>' +
       (meta.length ? '<div class="row-meta">' + meta.join('') + '</div>' : '') +
@@ -295,8 +414,7 @@
     var sum = list.reduce(function (a, f) { return a + money(f.gift); }, 0);
     $('listCount').textContent = list.length + ' 人' + (sum > 0 ? ' · ¥' + fmtMoney(sum) : '');
     $('listTitle').textContent = (filterTag === '__none__' ? '未分组' : (filterTag || '全部朋友')) +
-      (filterStatus === 'all' ? '' : ' · ' + STATUS_TEXT[filterStatus]) +
-      (filterGift === 'has' ? ' · 已随礼' : filterGift === 'none' ? ' · 未随礼' : '');
+      (filterStatus === 'all' ? '' : ' · ' + STATUS_TEXT[filterStatus]);
 
     if (!friends.length) { box.innerHTML = ''; $('empty').hidden = false; return; }
     $('empty').hidden = true;
@@ -330,7 +448,7 @@
     [].forEach.call(document.querySelectorAll('.panel[data-panel]'), function (p) {
       p.classList.toggle('collapsed', !!pref.fold[p.dataset.panel]);
     });
-    var active = (filterStatus !== 'all') || !!keyword || pref.group || pref.sort !== 'date-desc' || filterGift !== 'all';
+    var active = (filterStatus !== 'all') || !!keyword || pref.group || pref.sort !== 'date-desc';
     $('filterTip').hidden = !(active && pref.fold.filter);
   }
 
@@ -386,6 +504,46 @@
     if (!b) return;
     filterGift = b.dataset.gift;
     render();
+  });
+
+  /* ---------------- 视图切换：名单 / 份子钱 ---------------- */
+  function switchView(v) {
+    view = v;
+    document.body.classList.toggle('view-gift', v === 'gift');
+    $('viewList').hidden = v !== 'list';
+    $('viewGift').hidden = v !== 'gift';
+    [].forEach.call($('tabs').children, function (b) {
+      b.classList.toggle('on', b.dataset.view === v);
+    });
+    window.scrollTo(0, 0);
+    render();
+  }
+  $('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-view]');
+    if (b) switchView(b.dataset.view);
+  });
+  $('giftPeek').addEventListener('click', function () { switchView('gift'); });
+
+  // 份子钱页：搜索 / 排序 / 点标签卡跳回名单 / 点明细行记账
+  $('gSearch').addEventListener('input', function () {
+    giftKeyword = this.value.trim();
+    renderGiftList(scopedByTag());
+  });
+  $('gSortSel').addEventListener('change', function () {
+    giftSort = this.value;
+    renderGiftList(scopedByTag());
+  });
+  $('gTagRows').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tagjump]');
+    if (!b) return;
+    var t = b.dataset.tagjump;
+    filterTag = (filterTag === t) ? null : (t === '未分组' ? '__none__' : t);
+    render();
+    toast(filterTag ? '只看「' + t + '」这一摊' : '已看全部');
+  });
+  $('gList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-gift]');
+    if (b) openGift(b.dataset.gift);
   });
 
   // 搜索
@@ -762,75 +920,19 @@
       }).join('\n');
   }
 
-  function openLedger() {
-    var rows = ledgerRows();
-    var total = rows.reduce(function (a, f) { return a + money(f.gift); }, 0);
-    var missing = friends.filter(function (f) { return !hasGift(f); });
+  function openLedger() { switchView('gift'); }
 
-    // 按标签分摊，方便回礼时按圈子看
-    var byTag = {};
-    rows.forEach(function (f) {
-      var t = f.relation || '未分组';
-      if (!byTag[t]) byTag[t] = { n: 0, sum: 0 };
-      byTag[t].n++; byTag[t].sum += money(f.gift);
-    });
-    var tagRows = allTags().concat(['未分组']).filter(function (t) { return byTag[t]; })
-      .map(function (t) {
-        // 这一摊全是实物礼时别显示 ¥0，容易看成"没收到"
-        var sum = byTag[t].sum > 0
-          ? '<b class="lg-sum">¥' + fmtMoney(byTag[t].sum) + '</b>'
-          : '<b class="lg-sum kind">仅实物</b>';
-        return '<div class="tagrow"><span class="tagrow-name">' + esc(t) + '</span>' +
-          '<em>' + byTag[t].n + ' 人</em>' + sum + '</div>';
-      }).join('');
-
-    var detail = rows.length
-      ? rows.map(function (f, i) {
-        return '<div class="lgrow"><span class="lg-i">' + (i + 1) + '</span>' +
-          '<span class="lg-n">' + esc(f.name) +
-          (f.relation ? '<i>' + esc(f.relation) + '</i>' : '') + '</span>' +
-          '<span class="lg-w">' + esc(f.giftNote || '') + '</span>' +
-          (money(f.gift) > 0
-            ? '<b class="lg-a">¥' + fmtMoney(f.gift) + '</b>'
-            : '<b class="lg-a kind">实物</b>') + '</div>';
-      }).join('')
-      : '<p class="lg-empty">还没记过份子钱。回到名单，点每个人右边的 ¥ 按钮就能记。</p>';
-
-    openModal('礼金台账',
-      '<div class="mod-sec lg-top"><div class="lg-total"><span>¥</span><b>' + fmtMoney(total) + '</b></div>' +
-      '<p class="lg-sub">' + rows.length + ' 人已随礼 · 还有 ' + missing.length + ' 人没记</p></div>' +
-      (tagRows ? '<div class="mod-sec"><h4>按标签分摊</h4>' + tagRows + '</div>' : '') +
-      '<div class="mod-sec"><h4>明细（金额多→少）</h4>' + detail + '</div>' +
-      (missing.length
-        ? '<div class="mod-sec"><h4>还没记的 ' + missing.length + ' 人</h4>' +
-        '<p class="lg-miss">' + missing.slice(0, 60).map(function (f) { return esc(f.name); }).join('、') +
-        (missing.length > 60 ? ' 等' : '') + '</p>' +
-        '<button class="sec-btn block" id="lgGoMissing">只看这些人</button></div>'
-        : '') +
-      '<div class="mod-sec"><h4>导出</h4>' +
-      '<p>复制成文字发微信，或导出 CSV 用 Excel 打开对账。</p>' +
-      '<div class="btns two"><button class="primary-btn" id="lgCopy">复制台账</button>' +
-      '<button class="sec-btn" id="lgCsv">导出 CSV</button></div></div>',
-      function (body) {
-        body.querySelector('#lgCopy').onclick = function () {
-          var ta = document.createElement('textarea');
-          ta.value = ledgerText();
-          ta.style.cssText = 'position:fixed;opacity:0;top:0';
-          document.body.appendChild(ta);
-          copyText(ta.value, ta);
-          setTimeout(function () { ta.remove(); }, 600);
-        };
-        body.querySelector('#lgCsv').onclick = exportCSV;
-        var miss = body.querySelector('#lgGoMissing');
-        if (miss) miss.onclick = function () {
-          filterGift = 'none'; filterStatus = 'all'; filterTag = null;
-          pref.fold.filter = false; savePref();
-          closeModal(); syncSeg(); render();
-          toast('已筛出还没记份子钱的 ' + missing.length + ' 人');
-        };
-      });
-  }
-  $('btnLedger').addEventListener('click', openLedger);
+  // 复制台账 / 导出 CSV（份子钱页底部）
+  $('lgCopy').addEventListener('click', function () {
+    if (!ledgerRows().length) { toast('还没记过份子钱'); return; }
+    var ta = document.createElement('textarea');
+    ta.value = ledgerText();
+    ta.style.cssText = 'position:fixed;opacity:0;top:0';
+    document.body.appendChild(ta);
+    copyText(ta.value, ta);
+    setTimeout(function () { ta.remove(); }, 600);
+  });
+  $('lgCsv').addEventListener('click', exportCSV);
 
   function exportCSV() {
     var rows = ledgerRows();
@@ -1170,11 +1272,11 @@
       '</div>' +
       '<div class="mod-sec"><h4>快捷操作</h4>' +
       '<ul class="tiplist">' +
-      '<li><b>记份子钱：</b>点名字右边的「¥」按钮，选档位或手输金额，保存就行。记过的会直接显示红色金额。</li>' +
+      '<li><b>记份子钱：</b>名单里点名字右边的按钮——红色的是已收到的金额，灰色「未随」是还没记的，一眼就能扫出来谁随了。</li>' +
+      '<li>顶部「份子钱」页是独立一页：大总额、收礼进度、按标签分摊，下面分「已随礼 / 还没记」两段列清楚，点任意一行就能记或改。</li>' +
       '<li>记完默认会把这个人标成「确认出席」，不想要就在弹层里取消勾选。</li>' +
-      '<li>收的是实物（烟酒、被褥）就把金额留空，在「收礼方式」里写清楚，台账里会显示「实物」。</li>' +
-      '<li>「份子钱」面板点「台账」看总额、按标签分摊、完整明细，能复制成文字或导出 CSV 对账。</li>' +
-      '<li>台账里点「只看这些人」，能一键筛出还没记份子钱的，适合婚礼后查漏。</li>' +
+      '<li>收的是实物（烟酒、被褥）就把金额留空，在「收礼方式」里写清楚，台账里会显示「实物」，不计进总额。</li>' +
+      '<li>份子钱页点标签分摊里的某一摊，能只看那个圈子的礼金；底部可复制台账或导出 CSV 对账。</li>' +
       '<li>点一下右边的状态徽章，就在「已通知 → 确认出席 → 待确认 → 不来」之间循环切换。</li>' +
       '<li>明细默认排序：通知日期新的在前；同一天内按「已通知 → 待确认 → 不来 → 确认出席」排，没落定的排在前面。</li>' +
       '<li>标签顺序可以自己调：标签分组右上角「管理」里用 ↑ ↓ 排，网格、表单、分组视图都跟着变。</li>' +
@@ -1187,10 +1289,10 @@
       '<div class="mod-sec"><h4>自检信息</h4>' +
       '<p id="diagBox" style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.8">读取中…</p>' +
       '<button class="sec-btn block" id="btnCopyDiag">复制自检信息</button></div>' +
-      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.2 · iPhone 版</p></div>',
+      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.3 · iPhone 版</p></div>',
       function (body) {
         var lines = [
-          '版本 v4.2-iOS',
+          '版本 v4.3-iOS',
           '记录 ' + friends.length + ' 条 · 礼金 ¥' + fmtMoney(friends.reduce(function(a,f){return a+money(f.gift);},0)) + ' · 标签 ' + customTags.length + ' 个',
           '网络 ' + (navigator.onLine ? '在线' : '离线'),
           '离线缓存 ' + ('serviceWorker' in navigator ? (navigator.serviceWorker.controller ? '已生效' : '未生效') : '不支持'),
@@ -1228,6 +1330,7 @@
   /* ---------------- 启动 ---------------- */
   loadAll();
   $('sortSel').value = pref.sort;
+  $('gSortSel').value = giftSort;
   $('groupToggle').checked = !!pref.group;
   $('fDate').value = today();
   syncSeg();
