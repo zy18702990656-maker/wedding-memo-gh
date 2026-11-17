@@ -1,5 +1,5 @@
 /* 婚礼通知备忘录 · Service Worker */
-var CACHE = 'wedding-memo-gh-v4.3.1';
+var CACHE = 'wedding-memo-gh-v4.3.2';
 
 /* 会随版本变的代码/页面：必须网络优先，否则升级时会出现「新 HTML 配旧 JS」 */
 var FRESH = ['index.html', 'rescue.html', 'app.js', 'styles.css', 'manifest.webmanifest'];

@@ -20,8 +20,8 @@
   var STATUS_TEXT = { notified: '已通知', confirmed: '确认出席', pending: '待确认', declined: '不来' };
   // 明细列表的状态排序权重：已通知 → 待确认 → 不来 → 确认出席（越小越靠前）
   var STATUS_RANK = { notified: 0, pending: 1, declined: 2, confirmed: 3 };
-  // 记份子弹层里的快捷金额（关中一带常见档位）
-  var QUICK_AMTS = [100, 200, 300, 500, 600, 800, 1000, 2000];
+  // 记份子弹层里的快捷金额（关中一带常见档位）+ 一个「未随」选项
+  var QUICK_AMTS = [200, 300, 500, 800, 1000];
 
   /* ---------------- 状态 ---------------- */
   var friends = [];
@@ -38,6 +38,8 @@
   var keyword = '';
   var editingId = null;
   var giftingId = null;      // 正在记份子的那个人
+  var giftNonePicked = false;// 弹层里是否选中了「未随」
+  var giftNeedConfirm = true;// 这人是否还不是「确认出席」（决定是否显示自动勾选）
   var pickedTag = '';
   var undoTimer = null;
 
@@ -717,6 +719,7 @@
     var f = friends.find(function (x) { return x.id === id; });
     if (!f) return;
     giftingId = id;
+    giftNonePicked = false;
 
     var amt = money(f.gift);
     $('giftTitle').textContent = hasGift(f) ? '改份子钱' : '记份子';
@@ -730,47 +733,71 @@
     $('btnGiftRemove').hidden = !hasGift(f);
 
     // 已经是「确认出席」就不用再提了
-    var needConfirm = f.status !== 'confirmed';
-    $('giftAutoWrap').hidden = !needConfirm;
-    $('gAutoConfirm').checked = needConfirm;
+    giftNeedConfirm = f.status !== 'confirmed';
+    $('gAutoConfirm').checked = giftNeedConfirm;
 
     renderQuickAmts();
     syncGiftSaveLabel();
     $('giftMask').hidden = false;
   }
-  function closeGift() { $('giftMask').hidden = true; giftingId = null; }
+  function closeGift() {
+    $('giftMask').hidden = true; giftingId = null; giftNonePicked = false;
+  }
 
   function renderQuickAmts() {
     var cur = money($('gAmount').value);
-    $('quickAmt').innerHTML = QUICK_AMTS.map(function (n) {
+    var html = QUICK_AMTS.map(function (n) {
       return '<button type="button" data-amt="' + n + '"' +
-        (cur === n ? ' class="on"' : '') + '>' + fmtMoney(n) + '</button>';
+        (!giftNonePicked && cur === n ? ' class="on"' : '') + '>' + n + '</button>';
     }).join('');
+    // 第 6 个格子：明确标「未随」，和金额档位在样式上分开
+    html += '<button type="button" class="none' + (giftNonePicked ? ' on' : '') +
+      '" data-amt="none">未随</button>';
+    $('quickAmt').innerHTML = html;
   }
   function syncGiftSaveLabel() {
+    if (giftNonePicked) {
+      $('btnGiftSave').textContent = '标为未随';
+      $('giftAutoWrap').hidden = true;   // 没随礼，不该顺手把人改成「确认出席」
+      return;
+    }
+    $('giftAutoWrap').hidden = !giftNeedConfirm;
     var n = money($('gAmount').value);
-    var way = $('gWay').value.trim();
-    $('btnGiftSave').textContent = n > 0 ? '保存 ¥' + fmtMoney(n) : (way ? '保存' : '保存');
+    $('btnGiftSave').textContent = n > 0 ? '保存 ¥' + fmtMoney(n) : '保存';
   }
 
   $('quickAmt').addEventListener('click', function (e) {
     var b = e.target.closest('[data-amt]');
     if (!b) return;
-    var n = +b.dataset.amt;
-    // 再点一次已选中的档位 = 取消，省得手滑了还得去清空
-    $('gAmount').value = (money($('gAmount').value) === n) ? '' : n;
+    if (b.dataset.amt === 'none') {
+      // 再点一次 = 取消，和金额档位保持一致，防手滑
+      giftNonePicked = !giftNonePicked;
+      if (giftNonePicked) { $('gAmount').value = ''; $('gWay').value = ''; }
+    } else {
+      var n = +b.dataset.amt;
+      var wasNone = giftNonePicked;
+      giftNonePicked = false;   // 选了金额就等于不要「未随」
+      // 再点一次已选中的档位 = 取消
+      $('gAmount').value = (!wasNone && money($('gAmount').value) === n) ? '' : n;
+    }
     renderQuickAmts();
     syncGiftSaveLabel();
   });
   $('gAmount').addEventListener('input', function () {
     var v = this.value.replace(/[^\d]/g, '').slice(0, 7);
     if (v !== this.value) this.value = v;
+    giftNonePicked = false;   // 手输金额 = 取消「未随」
     renderQuickAmts();
     syncGiftSaveLabel();
   });
-  $('gWay').addEventListener('input', syncGiftSaveLabel);
+  $('gWay').addEventListener('input', function () {
+    if (this.value.trim()) giftNonePicked = false;
+    renderQuickAmts();
+    syncGiftSaveLabel();
+  });
   $('btnGiftClear').addEventListener('click', function () {
     $('gAmount').value = '';
+    giftNonePicked = false;
     renderQuickAmts();
     syncGiftSaveLabel();
     $('gAmount').focus();
@@ -779,19 +806,23 @@
   $('btnGiftSave').addEventListener('click', function () {
     var f = friends.find(function (x) { return x.id === giftingId; });
     if (!f) return closeGift();
+    var nonePicked = giftNonePicked;
     var amt = money($('gAmount').value);
     var way = $('gWay').value.trim();
-    if (!amt && !way) { toast('填个金额，或者写上收的什么实物'); $('gAmount').focus(); return; }
+    if (!nonePicked && !amt && !way) {
+      toast('填个金额，或者点上边的「未随」'); $('gAmount').focus(); return;
+    }
 
     snapshot();
-    f.gift = amt;
-    f.giftNote = way;
-    f.giftAt = $('gDate').value || today();
-    if (!$('giftAutoWrap').hidden && $('gAutoConfirm').checked) f.status = 'confirmed';
+    f.gift = nonePicked ? 0 : amt;
+    f.giftNote = nonePicked ? '' : way;
+    f.giftAt = nonePicked ? '' : ($('gDate').value || today());
+    if (!nonePicked && !$('giftAutoWrap').hidden && $('gAutoConfirm').checked) f.status = 'confirmed';
     f.updatedAt = now();
     commit();
     closeGift(); render();
-    toast(f.name + ' · ' + (amt > 0 ? '¥' + fmtMoney(amt) : way) + ' 已记下');
+    toast(nonePicked ? f.name + ' · 已标为未随'
+      : f.name + ' · ' + (amt > 0 ? '¥' + fmtMoney(amt) : way) + ' 已记下');
   });
 
   $('btnGiftRemove').addEventListener('click', function () {
@@ -1274,7 +1305,8 @@
       '<ul class="tiplist">' +
       '<li><b>记份子钱：</b>名单里点名字右边的按钮——红色的是已收到的金额，灰色「未随」是还没记的，一眼就能扫出来谁随了。</li>' +
       '<li>顶部「份子钱」页是独立一页：大总额、收礼进度、按标签分摊，下面分「已随礼 / 还没记」两段列清楚，点任意一行就能记或改。</li>' +
-      '<li>记完默认会把这个人标成「确认出席」，不想要就在弹层里取消勾选。</li>' +
+      '<li>弹层里有 5 个常用金额（200 / 300 / 500 / 800 / 1000）和「未随」：点「未随」再保存，就是明确记下这人没随礼，之前记错的一键清掉。</li>' +
+      '<li>记完默认会把这个人标成「确认出席」，不想要就在弹层里取消勾选；标「未随」时不会动出席状态。</li>' +
       '<li>收的是实物（烟酒、被褥）就把金额留空，在「收礼方式」里写清楚，台账里会显示「实物」，不计进总额。</li>' +
       '<li>份子钱页点标签分摊里的某一摊，能只看那个圈子的礼金；底部可复制台账或导出 CSV 对账。</li>' +
       '<li>点一下右边的状态徽章，就在「已通知 → 确认出席 → 待确认 → 不来」之间循环切换。</li>' +
@@ -1289,10 +1321,10 @@
       '<div class="mod-sec"><h4>自检信息</h4>' +
       '<p id="diagBox" style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.8">读取中…</p>' +
       '<button class="sec-btn block" id="btnCopyDiag">复制自检信息</button></div>' +
-      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.3 · iPhone 版</p></div>',
+      '<div class="mod-sec"><p style="color:#7d97ae">婚礼通知备忘录 v4.3.2 · iPhone 版</p></div>',
       function (body) {
         var lines = [
-          '版本 v4.3-iOS',
+          '版本 v4.3.2-iOS',
           '记录 ' + friends.length + ' 条 · 礼金 ¥' + fmtMoney(friends.reduce(function(a,f){return a+money(f.gift);},0)) + ' · 标签 ' + customTags.length + ' 个',
           '网络 ' + (navigator.onLine ? '在线' : '离线'),
           '离线缓存 ' + ('serviceWorker' in navigator ? (navigator.serviceWorker.controller ? '已生效' : '未生效') : '不支持'),
