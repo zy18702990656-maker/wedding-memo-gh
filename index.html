@@ -148,10 +148,11 @@
         <div class="hero-bar-tip"><span id="gBarL">0 人已随礼</span><span id="gBarR">共 0 人</span></div>
       </div>
 
-      <div class="gift-mini">
+      <div class="gift-mini five">
         <div class="gm"><b id="gCount">0</b><span>已随礼</span></div>
         <div class="gm"><b id="gAvg">0</b><span>人均</span></div>
         <div class="gm"><b id="gMax">0</b><span>最高</span></div>
+        <div class="gm hl"><b id="gNoGift">0</b><span>未随</span></div>
         <div class="gm"><b id="gNone">0</b><span>还没记</span></div>
       </div>
 
@@ -166,9 +167,10 @@
           <input id="gSearch" type="search" placeholder="搜姓名 / 标签 / 收礼方式" autocomplete="off">
         </div>
         <div class="seg gift-seg" id="giftSeg">
-          <button data-gift="all" class="on">全部</button>
-          <button data-gift="has">已随礼</button>
-          <button data-gift="none">还没记</button>
+          <button data-gift="all" class="on">全部<i id="segAll">0</i></button>
+          <button data-gift="has">已随礼<i id="segHas">0</i></button>
+          <button data-gift="none">未随<i id="segNone">0</i></button>
+          <button data-gift="todo">还没记<i id="segTodo">0</i></button>
         </div>
         <div class="sort-row">
           <label for="gSortSel">排序</label>
@@ -343,6 +345,6 @@ window.addEventListener('error', function (e) {
   <a href="rescue.html">打开抢救页 ›</a>
 </div>
 
-<script src="app.js?v=4.3.2"></script>
+<script src="app.js?v=4.4.0"></script>
 </body>
 </html>

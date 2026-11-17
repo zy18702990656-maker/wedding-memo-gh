@@ -708,3 +708,62 @@ body.view-gift .main{padding-top:4px}
   background:linear-gradient(145deg,#d4423f,#b82424);color:#fff;
   font-size:14px;font-weight:700;text-decoration:none;
 }
+
+/* ===================== v4.4：未随统计 + 醒目的保存按钮 ===================== */
+.gift-mini.five{grid-template-columns:repeat(5,1fr);gap:5px}
+.gift-mini.five .gm{padding:7px 2px}
+.gift-mini.five .gm b{font-size:14px}
+.gift-mini.five .gm span{font-size:9.5px}
+.gm.hl{background:#eef1f6;border-color:rgba(92,111,132,.32)}
+.gm.hl b{color:#4d6076}
+.gm.hl span{color:#5c6f84}
+
+/* 筛选按钮上直接带人数，截图那块就是统计 */
+.gift-seg button{display:inline-flex;align-items:center;gap:5px;padding:6px 10px}
+.gift-seg button i{
+  font-style:normal;font-size:11px;font-weight:700;line-height:1.6;
+  min-width:20px;padding:0 5px;border-radius:999px;
+  background:var(--blue-soft-2);color:var(--text-3);
+  font-variant-numeric:tabular-nums;
+}
+.gift-seg button.on i{background:rgba(255,255,255,.24);color:#fff}
+
+/* 明细里的「未随」段 */
+.glist-head.nogift h3{color:#4d6076}
+.glist-head.nogift h3 i{background:#eef1f6;color:#5c6f84;border:1px solid rgba(92,111,132,.22)}
+.glist-head.nogift span{font-size:11.5px;font-weight:700;color:var(--text-3)}
+.grow.nogift{border-left:3px solid #8b9bad;background:#fbfcfe}
+.gr-none{
+  flex:0 0 auto;font-size:12px;font-weight:700;color:#fff;background:#8b9bad;
+  border-radius:999px;padding:5px 11px;
+}
+
+/* 名单页：确认未随 = 深灰实心，还没记 = 浅灰虚线，文案都叫「未随」 */
+.money.none.confirmed{background:#5c6f84;border:1px solid #5c6f84;color:#fff}
+
+/* 弹层右上角保存：实心胶囊，不再只是一行红字 */
+.sheet-gift .sheet-head{position:relative}
+.sheet-gift .sheet-head h3{
+  position:absolute;left:50%;transform:translateX(-50%);pointer-events:none;
+}
+.sheet-gift .sheet-head #btnGiftSave{
+  flex:0 0 auto;min-width:94px;text-align:center;
+  padding:9px 15px;border-radius:999px;border:1px solid transparent;
+  background:linear-gradient(145deg,#d4423f,#b82424);color:#fff;
+  font-size:14px;font-weight:700;line-height:1.2;
+  box-shadow:0 3px 12px rgba(198,45,45,.3);
+  transition:transform .1s,background .15s;
+}
+.sheet-gift .sheet-head #btnGiftSave:active{transform:scale(.95);opacity:1}
+.sheet-gift .sheet-head #btnGiftSave.is-none{
+  background:linear-gradient(145deg,#6c8098,#52677e);
+  box-shadow:0 3px 12px rgba(8,70,140,.24);
+}
+
+@media (max-width:430px){
+  .gift-mini.five{gap:4px}
+  .gift-mini.five .gm b{font-size:13px}
+  .gift-mini.five .gm span{font-size:9px}
+  .gift-seg button{padding:6px 8px;font-size:12px}
+  .gift-seg button i{font-size:10.5px;min-width:18px}
+}

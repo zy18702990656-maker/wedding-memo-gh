@@ -182,7 +182,8 @@ a.back{display:inline-block;margin-top:6px;font-size:13px;font-weight:700;color:
         (f.date ? '<br><span class="muted">' + esc(f.date) + '</span>' : '') + '</td>' +
         '<td class="num">' + (money(f.gift) > 0
           ? '<span class="money">¥' + fmt(f.gift) + '</span>'
-          : (f.giftNote ? '<span class="money">实物</span>' : '<span class="muted">—</span>')) +
+          : (f.giftNote ? '<span class="money">实物</span>'
+            : (f.giftNone ? '<span class="muted">未随</span>' : '<span class="muted">—</span>'))) +
         (f.giftNote ? '<br><span class="muted">' + esc(f.giftNote) + '</span>' : '') +
         '</td></tr>';
     });
@@ -266,7 +267,7 @@ a.back{display:inline-block;margin-top:6px;font-size:13px;font-weight:700;color:
           return [f.name, f.relation || '', f.date || '',
             STATUS_ORDER.indexOf(f.status) < 0 ? 0 : STATUS_ORDER.indexOf(f.status),
           f.note || '', f.updatedAt || 0, f.id || '',
-            money(f.gift), f.giftNote || '', f.giftAt || ''];
+            money(f.gift), f.giftNote || '', f.giftAt || '', f.giftNone ? 1 : 0];
         })
       };
       var bytes = new TextEncoder().encode(JSON.stringify(payload));
